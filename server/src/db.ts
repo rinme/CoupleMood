@@ -301,8 +301,9 @@ export function getSession(token: string): SessionResult | null {
     return null;
   }
 
-  // Check expiration
-  if (new Date(session.expires_at).getTime() <= Date.now()) {
+  // Check expiration (handles invalid date or NaN safely)
+  const expiresAt = new Date(session.expires_at).getTime();
+  if (Number.isNaN(expiresAt) || expiresAt <= Date.now()) {
     db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
     return null;
   }
@@ -349,4 +350,119 @@ export function deleteSession(token: string): void {
 
   const db = dbInstance ?? getDb();
   db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+}
+
+/**
+ * Retrieves the current mood for a given user.
+ */
+export function getMood(userId: string): Mood | null {
+  if (!userId) return null;
+  const db = dbInstance ?? getDb();
+  const mood = db
+    .prepare(
+      'SELECT user_id, emoji, label, note, color_theme, updated_at FROM moods WHERE user_id = ?'
+    )
+    .get(userId) as Mood | undefined;
+  return mood ?? null;
+}
+
+/**
+ * Upserts a mood record for a user.
+ */
+export function setMood(
+  userId: string,
+  emoji: string,
+  label: string,
+  note?: string | null,
+  colorTheme: string = 'rose'
+): Mood {
+  if (!userId) throw new Error('User ID is required');
+  if (!emoji || !label) throw new Error('Emoji and label are required');
+
+  const db = dbInstance ?? getDb();
+  const theme = colorTheme || 'rose';
+  const cleanNote = note ?? null;
+
+  db.prepare(`
+    INSERT INTO moods (user_id, emoji, label, note, color_theme, updated_at)
+    VALUES (?, ?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(user_id) DO UPDATE SET
+      emoji = excluded.emoji,
+      label = excluded.label,
+      note = excluded.note,
+      color_theme = excluded.color_theme,
+      updated_at = datetime('now')
+  `).run(userId, emoji, label, cleanNote, theme);
+
+  const mood = getMood(userId);
+  if (!mood) {
+    throw new Error('Failed to retrieve updated mood');
+  }
+  return mood;
+}
+
+/**
+ * Deletes a mood record for a user.
+ */
+export function deleteMood(userId: string): void {
+  if (!userId) return;
+  const db = dbInstance ?? getDb();
+  db.prepare('DELETE FROM moods WHERE user_id = ?').run(userId);
+}
+
+/**
+ * Saves or updates a push subscription for a user.
+ */
+export function savePushSubscription(
+  userId: string,
+  endpoint: string,
+  p256dh: string,
+  auth: string
+): PushSubscriptionRecord {
+  if (!userId) throw new Error('User ID is required');
+  if (!endpoint || !p256dh || !auth) throw new Error('Endpoint, p256dh, and auth are required');
+
+  const db = dbInstance ?? getDb();
+  const subId = crypto.randomUUID();
+
+  db.prepare(`
+    INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, created_at)
+    VALUES (?, ?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(endpoint) DO UPDATE SET
+      user_id = excluded.user_id,
+      p256dh = excluded.p256dh,
+      auth = excluded.auth
+  `).run(subId, userId, endpoint, p256dh, auth);
+
+  const saved = db
+    .prepare('SELECT id, user_id, endpoint, p256dh, auth, created_at FROM push_subscriptions WHERE endpoint = ?')
+    .get(endpoint) as PushSubscriptionRecord;
+
+  return saved;
+}
+
+/**
+ * Deletes a push subscription by endpoint, optionally scoped to a user.
+ */
+export function deletePushSubscription(endpoint: string, userId?: string): void {
+  if (!endpoint) return;
+  const db = dbInstance ?? getDb();
+  if (userId) {
+    db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?').run(endpoint, userId);
+  } else {
+    db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(endpoint);
+  }
+}
+
+/**
+ * Retrieves all push subscriptions for a user.
+ */
+export function getPushSubscriptions(userId: string): PushSubscriptionRecord[] {
+  if (!userId) return [];
+  const db = dbInstance ?? getDb();
+  return db
+    .prepare(
+      'SELECT id, user_id, endpoint, p256dh, auth, created_at FROM push_subscriptions WHERE user_id = ?'
+    )
+    .all(userId) as PushSubscriptionRecord[];
 }
