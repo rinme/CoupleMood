@@ -1,15 +1,13 @@
-# Mood Sender 💕 (CoupleMood)
+# Mood Sender (CoupleMood)
 
 > A private, cozy warm Progressive Web App (PWA) designed for romantic partners to share current feelings, ambient status, and gentle notes in real-time with zero friction.
-
-![Mood Sender Banner](client/public/icons/icon-512.png)
 
 ---
 
 ## Highlights
 
 - **Private Couple Rooms**: Pair effortlessly using a simple 4–12 character shared code. Strict two-partner capacity prevents unauthorized access.
-- **Instant Mood Updates**: Choose expressive presets (🥰 Loving, ☕ Cozy, 😴 Sleepy, ✨ Excited, 🥺 Missing you, 🧘 Calm) or enter custom emojis and 100-character love notes.
+- **Instant Mood Updates**: Choose expressive presets (Loving, Cozy, Sleepy, Excited, Missing you, Calm) or enter custom text and 100-character notes.
 - **Real-time Live Sync**: Server-Sent Events (SSE) push partner mood changes instantly without manual refreshing or aggressive battery drain.
 - **Offline PWA & Service Worker**: Fully functional offline shell with network-first API caching, offline fallback, and standalone home-screen experience.
 - **Web Push Notifications**: Background notifications alert your partner when you update your mood—even if the app is closed.
@@ -33,7 +31,7 @@ curl -fsSL https://bun.sh/install | bash
 
 Clone the repository and install all dependencies:
 ```bash
-git clone https://github.com/example/couple-mood.git
+git clone https://github.com/rinme/CoupleMood.git
 cd CoupleMood
 bun install
 ```
@@ -88,7 +86,7 @@ CoupleMood/
 │   │   ├── components/         # Header, PairModal, PartnerCard, MyMoodCard, PushPrompt
 │   │   ├── api.ts              # Fetch client communicating with /api/*
 │   │   ├── sw-register.ts      # Service worker registration & push subscription helpers
-│   │   ├── presets.ts          # Default mood emojis, color themes, and quick-picks
+│   │   ├── presets.ts          # Default mood presets, color themes, and quick-picks
 │   │   ├── App.tsx             # Main layout, SSE listener & state coordinator
 │   │   └── main.tsx            # React root mount
 │   └── vite.config.ts          # Vite configuration & Happy-DOM test environment
@@ -129,7 +127,7 @@ The PWA Service Worker handles offline caching and background push:
 - **API Requests**: Network-first strategy for `/api/*` requests with cache fallback when offline.
 - **SSE Stream**: Automatically bypasses service worker cache directly to network for `/api/stream`.
 - **Headers on `/sw.js`**: `Service-Worker-Allowed: /` and `Cache-Control: no-cache, no-store, must-revalidate` ensure prompt updates and full-origin scope.
-- **Push Handling**: Displays system notifications with partner emoji and note. Clicking the notification focuses an open tab or launches the app.
+- **Push Handling**: Displays system notifications with partner mood and note. Clicking the notification focuses an open tab or launches the app.
 
 ### 3. REST API & Live SSE Stream
 
@@ -196,4 +194,4 @@ bun run test
 
 ## License
 
-MIT © CoupleMood Team
+MIT (c) CoupleMood Team
