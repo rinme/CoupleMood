@@ -13,7 +13,8 @@ import type {
   ServerSetting,
   VapidKeys,
   PairResult,
-  SessionResult
+  SessionResult,
+  UserPreset
 } from './types.js';
 
 let dbInstance: Database | null = null;
@@ -144,6 +145,19 @@ function createSchema(db: Database): void {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS user_presets (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      emoji TEXT NOT NULL,
+      label TEXT NOT NULL,
+      color_theme TEXT DEFAULT 'rose',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_user_presets_user ON user_presets(user_id, sort_order);
   `);
 }
 
@@ -473,3 +487,95 @@ export function getPushSubscriptions(userId: string): PushSubscriptionRecord[] {
     )
     .all(userId) as PushSubscriptionRecord[];
 }
+
+export interface DefaultPresetDefinition {
+  emoji: string;
+  label: string;
+  color_theme: string;
+}
+
+export const DEFAULT_PRESETS_TH: DefaultPresetDefinition[] = [
+  { emoji: '🥺', label: 'คิดถึง', color_theme: 'rose' },
+  { emoji: '🤤', label: 'หิว', color_theme: 'amber' },
+  { emoji: '🥰', label: 'รักนะ', color_theme: 'rose' },
+  { emoji: '😴', label: 'ง่วง', color_theme: 'purple' },
+  { emoji: '💻', label: 'ยุ่งมาก', color_theme: 'indigo' },
+  { emoji: '☕', label: 'ชิลๆ', color_theme: 'amber' },
+  { emoji: '🤒', label: 'ไม่สบาย', color_theme: 'teal' }
+];
+
+export const DEFAULT_PRESETS_EN: DefaultPresetDefinition[] = [
+  { emoji: '🥺', label: 'Missing you', color_theme: 'rose' },
+  { emoji: '🤤', label: 'Hungry', color_theme: 'amber' },
+  { emoji: '🥰', label: 'Loving', color_theme: 'rose' },
+  { emoji: '😴', label: 'Sleepy', color_theme: 'purple' },
+  { emoji: '💻', label: 'Busy', color_theme: 'indigo' },
+  { emoji: '☕', label: 'Cozy', color_theme: 'amber' },
+  { emoji: '🤒', label: 'Sick', color_theme: 'teal' }
+];
+
+/**
+ * Returns user's custom presets. If none exist, returns default presets for lang ('th' | 'en').
+ */
+export function getUserPresets(userId: string, lang: string = 'th'): UserPreset[] {
+  if (!userId) return [];
+  const db = dbInstance ?? getDb();
+  const rows = db
+    .prepare(
+      'SELECT id, user_id, emoji, label, color_theme, sort_order, created_at FROM user_presets WHERE user_id = ? ORDER BY sort_order ASC'
+    )
+    .all(userId) as UserPreset[];
+
+  if (rows.length > 0) {
+    return rows;
+  }
+
+  const defs = lang === 'en' ? DEFAULT_PRESETS_EN : DEFAULT_PRESETS_TH;
+  return defs.map((preset, index) => ({
+    id: `default-${index}`,
+    user_id: userId,
+    emoji: preset.emoji,
+    label: preset.label,
+    color_theme: preset.color_theme,
+    sort_order: index
+  }));
+}
+
+/**
+ * In a database transaction, deletes existing user presets and inserts new presets with sort_order.
+ */
+export function setUserPresets(
+  userId: string,
+  presets: Array<{ emoji: string; label: string; colorTheme?: string; color_theme?: string }>
+): UserPreset[] {
+  if (!userId) throw new Error('User ID is required');
+  const db = dbInstance ?? getDb();
+
+  const setTx = db.transaction(() => {
+    db.prepare('DELETE FROM user_presets WHERE user_id = ?').run(userId);
+    const insertStmt = db.prepare(`
+      INSERT INTO user_presets (id, user_id, emoji, label, color_theme, sort_order)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+
+    presets.forEach((preset, index) => {
+      const id = crypto.randomUUID();
+      const theme = preset.colorTheme || preset.color_theme || 'rose';
+      insertStmt.run(id, userId, preset.emoji.trim(), preset.label.trim(), theme, index);
+    });
+  });
+
+  setTx();
+
+  return getUserPresets(userId);
+}
+
+/**
+ * Deletes a user's custom presets so defaults are restored.
+ */
+export function resetUserPresets(userId: string): void {
+  if (!userId) return;
+  const db = dbInstance ?? getDb();
+  db.prepare('DELETE FROM user_presets WHERE user_id = ?').run(userId);
+}
+

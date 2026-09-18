@@ -59,3 +59,13 @@ export interface SessionResult {
   couple: Couple;
   partner: User | null;
 }
+
+export interface UserPreset {
+  id: string;
+  user_id: string;
+  emoji: string;
+  label: string;
+  color_theme?: string;
+  sort_order: number;
+  created_at?: string;
+}

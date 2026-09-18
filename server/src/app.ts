@@ -7,6 +7,7 @@ import { authRouter } from './routes/auth.js';
 import { moodRouter } from './routes/mood.js';
 import { pushRouter } from './routes/push.js';
 import { streamRouter } from './routes/stream.js';
+import { presetsRouter } from './routes/presets.js';
 
 /**
  * Creates and configures the Express application.
@@ -29,6 +30,7 @@ export function createApp(db?: Database): Express {
   // API Routers
   app.use('/api/auth', authRouter);
   app.use('/api/mood', moodRouter);
+  app.use('/api/presets', presetsRouter);
   app.use('/api/push', pushRouter);
   app.use('/api/stream', streamRouter);
 
