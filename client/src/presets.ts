@@ -1,4 +1,5 @@
 import { PresetMood } from './types.js';
+import { Language } from './i18n/types.js';
 
 export const PRESET_MOODS: PresetMood[] = [
   { emoji: '🥰', label: 'Loving', colorTheme: 'rose', description: 'Feeling warm affection & close' },
@@ -107,8 +108,13 @@ export function getThemeStyles(theme?: string): ThemeStyles {
 /**
  * Formats date into a human-friendly relative timestamp.
  */
-export function formatRelativeTime(dateInput?: string | Date | number | null): string {
-  if (!dateInput) return 'Recently';
+export function formatRelativeTime(
+  dateInput?: string | Date | number | null,
+  lang: Language = 'th'
+): string {
+  if (!dateInput) {
+    return lang === 'th' ? 'เมื่อสักครู่' : 'Recently';
+  }
 
   let date: Date;
   if (typeof dateInput === 'string') {
@@ -123,7 +129,9 @@ export function formatRelativeTime(dateInput?: string | Date | number | null): s
   }
 
   const timestamp = date.getTime();
-  if (isNaN(timestamp)) return 'Recently';
+  if (isNaN(timestamp)) {
+    return lang === 'th' ? 'เมื่อสักครู่' : 'Recently';
+  }
 
   const diffMs = Date.now() - timestamp;
   const diffSec = Math.floor(diffMs / 1000);
@@ -131,11 +139,20 @@ export function formatRelativeTime(dateInput?: string | Date | number | null): s
   const diffHours = Math.floor(diffMin / 60);
   const diffDays = Math.floor(diffHours / 24);
 
+  if (lang === 'th') {
+    if (diffSec < 60) return 'เมื่อสักครู่';
+    if (diffMin < 60) return `${diffMin} นาทีที่แล้ว`;
+    if (diffHours < 24) return `${diffHours} ชม. ที่แล้ว`;
+    if (diffDays === 1) return 'เมื่อวาน';
+    if (diffDays < 7) return `${diffDays} วันที่แล้ว`;
+    return date.toLocaleDateString('th-TH', { month: 'short', day: 'numeric' });
+  }
+
   if (diffSec < 60) return 'Just now';
   if (diffMin < 60) return `${diffMin}m ago`;
   if (diffHours < 24) return `${diffHours}h ago`;
   if (diffDays === 1) return 'Yesterday';
   if (diffDays < 7) return `${diffDays}d ago`;
 
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
