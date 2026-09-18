@@ -259,6 +259,41 @@ describe('Service Worker (client/public/sw.js)', () => {
     expect(options.tag).toBe('couple-mood');
     expect(options.renotify).toBe(true);
     expect(typeof options.body).toBe('string');
+    expect(options.data.url).toBe('/');
+  });
+
+  it('normalizes top-level url in push payload to data.url', async () => {
+    loadServiceWorker();
+
+    const pushHandler = listeners['push'][0];
+    let waitUntilPromise: Promise<any> | null = null;
+
+    const payload = {
+      title: 'Partner updated',
+      url: '/partner-view',
+    };
+
+    const mockEvent = {
+      data: {
+        json: () => payload,
+        text: () => JSON.stringify(payload),
+      },
+      waitUntil: (p: Promise<any>) => {
+        waitUntilPromise = p;
+      },
+    };
+
+    pushHandler(mockEvent);
+
+    expect(waitUntilPromise).not.toBeNull();
+    await waitUntilPromise;
+
+    expect(showNotificationMock).toHaveBeenCalledWith(
+      'Partner updated',
+      expect.objectContaining({
+        data: expect.objectContaining({ url: '/partner-view' }),
+      })
+    );
   });
 
   it('handles notificationclick event: focuses existing open window and posts REFRESH_MOOD message', async () => {
@@ -357,8 +392,10 @@ describe('Service Worker (client/public/sw.js)', () => {
     expect(skipWaitingMock).toHaveBeenCalled();
   });
 
-  it('cleans up old caches on activate and claims clients', async () => {
+  it('cleans up old caches on activate and claims clients without deleting current cache', async () => {
     loadServiceWorker();
+
+    cachesKeysMock.mockResolvedValue(['mood-sender-v1', 'old-cache-v0', 'another-v2']);
 
     const activateHandler = listeners['activate'][0];
     let waitUntilPromise: Promise<any> | null = null;
@@ -373,7 +410,10 @@ describe('Service Worker (client/public/sw.js)', () => {
     await waitUntilPromise;
 
     expect(cachesKeysMock).toHaveBeenCalled();
+    expect(cachesDeleteMock).toHaveBeenCalledTimes(2);
     expect(cachesDeleteMock).toHaveBeenCalledWith('old-cache-v0');
+    expect(cachesDeleteMock).toHaveBeenCalledWith('another-v2');
+    expect(cachesDeleteMock).not.toHaveBeenCalledWith('mood-sender-v1');
     expect(clientsClaimMock).toHaveBeenCalled();
   });
 
