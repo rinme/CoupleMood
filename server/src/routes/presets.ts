@@ -23,7 +23,7 @@ presetsRouter.get('/', requireAuth, (req: Request, res: Response) => {
  * Validates: 1-16 items, emoji non-empty, label non-empty and <= 30 chars.
  */
 presetsRouter.put('/', requireAuth, (req: Request, res: Response) => {
-  const { presets } = req.body;
+  const presets = req.body?.presets;
 
   if (!Array.isArray(presets) || presets.length < 1 || presets.length > 16) {
     res.status(400).json({ error: 'Presets must be an array of 1 to 16 items' });
@@ -36,8 +36,12 @@ presetsRouter.put('/', requireAuth, (req: Request, res: Response) => {
       return;
     }
 
-    if (typeof item.emoji !== 'string' || item.emoji.trim() === '') {
-      res.status(400).json({ error: 'Preset emoji is required and must not be empty' });
+    if (
+      typeof item.emoji !== 'string' ||
+      item.emoji.trim() === '' ||
+      item.emoji.trim().length > 10
+    ) {
+      res.status(400).json({ error: 'Preset emoji is required and must not exceed 10 characters' });
       return;
     }
 

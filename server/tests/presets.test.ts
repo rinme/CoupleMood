@@ -247,6 +247,23 @@ describe('Custom Mood Presets API & DB (/api/presets)', () => {
       expect(res.body.error).toMatch(/30 characters/i);
     });
 
+    it('rejects invalid presets where emoji exceeds 10 characters', async () => {
+      const pairRes = await request(app)
+        .post('/api/auth/pair')
+        .send({ code: 'PRESET-205A', nickname: 'Alice' });
+      const cookie = pairRes.headers['set-cookie'];
+
+      const res = await request(app)
+        .put('/api/presets')
+        .set('Cookie', cookie)
+        .send({
+          presets: [{ emoji: '🥺'.repeat(11), label: 'Too long emoji', colorTheme: 'rose' }]
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/10 characters/i);
+    });
+
     it('rejects missing or invalid body structure', async () => {
       const pairRes = await request(app)
         .post('/api/auth/pair')
@@ -264,6 +281,13 @@ describe('Custom Mood Presets API & DB (/api/presets)', () => {
         .set('Cookie', cookie)
         .send({ presets: 'not-an-array' });
       expect(res2.status).toBe(400);
+
+      const res3 = await request(app)
+        .put('/api/presets')
+        .set('Cookie', cookie)
+        .set('Content-Type', 'application/json')
+        .send('null');
+      expect(res3.status).toBe(400);
     });
   });
 
