@@ -24,4 +24,6 @@ streamRouter.get('/', requireAuth, (req, res) => {
   const cleanup = addConnection(req.user.id, res);
 
   req.on('close', cleanup);
+  res.on('close', cleanup);
+  res.on('error', cleanup);
 });

@@ -358,6 +358,20 @@ describe('Backend API Routes, SSE & Web Push Integration', () => {
       const res2 = await request(app).post('/api/mood').set('Cookie', cookie).send({ label: '' });
       expect(res2.status).toBe(400);
     });
+
+    it('POST /api/mood rejects note longer than 100 characters with 400', async () => {
+      const uRes = await request(app).post('/api/auth/pair').send({ code: 'LONG-1', nickname: 'Alice' });
+      const cookie = uRes.headers['set-cookie'];
+
+      const longNote = 'a'.repeat(101);
+      const res = await request(app)
+        .post('/api/mood')
+        .set('Cookie', cookie)
+        .send({ emoji: '✨', label: 'Excited', note: longNote });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('100 characters');
+    });
   });
 
   describe('4. Push Auto-pruning on 410 Gone / 404 Not Found', () => {
@@ -505,6 +519,16 @@ describe('Backend API Routes, SSE & Web Push Integration', () => {
       // Ensure invalid row was purged
       const row = db.prepare("SELECT * FROM sessions WHERE token = 'invalid-date-token'").get();
       expect(row).toBeUndefined();
+    });
+  });
+
+  describe('7. App Factory & Custom DB Wiring', () => {
+    it('createApp configures custom database instance when passed', async () => {
+      const customDb = initDb(':memory:');
+      const customApp = createApp(customDb);
+      const res = await request(customApp).get('/api/health');
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('ok');
     });
   });
 });
