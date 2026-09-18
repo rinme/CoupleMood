@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Send, Trash2, CheckCircle2, Sparkles } from 'lucide-react';
 import { Mood, SetMoodRequest, PresetMood } from '../types.js';
 import { PRESET_MOODS, getThemeStyles } from '../presets.js';
@@ -20,30 +20,51 @@ export const MyMoodCard: React.FC<MyMoodCardProps> = ({
   const [isClearing, setIsClearing] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
 
-  // Sync state when currentMood changes from props
+  const isDraftDirtyRef = useRef(false);
+  const lastSyncedUpdatedAtRef = useRef<string | undefined>(undefined);
+
+  // Sync state when currentMood changes from props without overwriting active user typing
   useEffect(() => {
     if (currentMood) {
+      const isNewTimestamp = currentMood.updated_at !== lastSyncedUpdatedAtRef.current;
+
       const match = PRESET_MOODS.find(
         (p) => p.emoji === currentMood.emoji && p.label === currentMood.label
       );
-      if (match) {
-        setSelectedPreset(match);
-      } else {
-        setSelectedPreset({
-          emoji: currentMood.emoji,
-          label: currentMood.label,
-          colorTheme: currentMood.colorTheme || currentMood.color_theme || 'rose',
-        });
+      if (isNewTimestamp || !selectedPreset) {
+        if (match) {
+          setSelectedPreset(match);
+        } else {
+          setSelectedPreset({
+            emoji: currentMood.emoji,
+            label: currentMood.label,
+            colorTheme: currentMood.colorTheme || currentMood.color_theme || 'rose',
+          });
+        }
       }
-      setNote(currentMood.note || '');
+
+      // Only update draft note if currentMood has a new timestamp or user has not modified draft
+      if (isNewTimestamp || !isDraftDirtyRef.current) {
+        setNote(currentMood.note || '');
+        isDraftDirtyRef.current = false;
+        lastSyncedUpdatedAtRef.current = currentMood.updated_at;
+      }
     } else {
-      setSelectedPreset(null);
-      setNote('');
+      if (!isDraftDirtyRef.current) {
+        setSelectedPreset(null);
+        setNote('');
+        lastSyncedUpdatedAtRef.current = undefined;
+      }
     }
   }, [currentMood]);
 
   const handleSelectPreset = (preset: PresetMood) => {
     setSelectedPreset(preset);
+  };
+
+  const handleNoteChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNote(e.target.value);
+    isDraftDirtyRef.current = true;
   };
 
   const handleBroadcast = async (e: React.FormEvent) => {
@@ -58,6 +79,7 @@ export const MyMoodCard: React.FC<MyMoodCardProps> = ({
         note: note.trim() || undefined,
         colorTheme: selectedPreset.colorTheme,
       });
+      isDraftDirtyRef.current = false;
       setShowSuccessToast(true);
       setTimeout(() => setShowSuccessToast(false), 2500);
     } finally {
@@ -72,6 +94,8 @@ export const MyMoodCard: React.FC<MyMoodCardProps> = ({
       await onClearMood();
       setSelectedPreset(null);
       setNote('');
+      isDraftDirtyRef.current = false;
+      lastSyncedUpdatedAtRef.current = undefined;
     } finally {
       setIsClearing(false);
     }
@@ -161,7 +185,7 @@ export const MyMoodCard: React.FC<MyMoodCardProps> = ({
               id="mood-note"
               type="text"
               value={note}
-              onChange={(e) => setNote(e.target.value)}
+              onChange={handleNoteChange}
               placeholder="e.g. dreaming of a latte, almost done with work..."
               maxLength={100}
               className="w-full bg-[#FAF7F2] border border-[#E8E2D9] rounded-2xl px-4 py-2.5 text-sm text-[#2D2825] placeholder:text-[#8C827A]/60 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:bg-white transition-all"

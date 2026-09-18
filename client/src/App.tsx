@@ -19,9 +19,43 @@ export const App: React.FC = () => {
   const [toast, setToast] = useState<{ message: string; emoji?: string } | null>(null);
 
   const eventSourceRef = useRef<EventSource | null>(null);
+  const toastTimerRef = useRef<any>(null);
+  const inFlightRef = useRef(false);
+  const lastLoadTimeRef = useRef(0);
 
-  // Revalidate moods & session from server
-  const loadMoods = useCallback(async () => {
+  // Helper to show transient toasts and clear existing timers
+  const showToast = useCallback((toastData: { message: string; emoji?: string }) => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+    setToast(toastData);
+    toastTimerRef.current = setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 3500);
+  }, []);
+
+  // Clear toast timer on unmount
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Revalidate moods & session from server with throttling
+  const loadMoods = useCallback(async (force = false) => {
+    const now = Date.now();
+    // Throttle simultaneous focus + visibilitychange requests within 1500ms unless forced
+    if (!force) {
+      if (inFlightRef.current || now - lastLoadTimeRef.current < 1500) {
+        return;
+      }
+    }
+    inFlightRef.current = true;
+    lastLoadTimeRef.current = now;
+
     try {
       const data = await api.mood.getMoods();
       setMyMood(data.myMood);
@@ -31,6 +65,8 @@ export const App: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to load moods:', err);
+    } finally {
+      inFlightRef.current = false;
     }
   }, []);
 
@@ -45,8 +81,8 @@ export const App: React.FC = () => {
         setSession(sessionData);
         setPartner(sessionData.partner);
 
-        // Fetch moods
-        await loadMoods();
+        // Fetch moods (forced on mount)
+        await loadMoods(true);
 
         // Register Service Worker in background
         registerServiceWorker().catch((err) =>
@@ -84,8 +120,31 @@ export const App: React.FC = () => {
     let reconnectTimer: any;
     let es: EventSource | null = null;
 
+    const handleSseMessage = (event: MessageEvent) => {
+      if (!event.data || event.data.trim() === 'ping') return;
+      try {
+        const payload = JSON.parse(event.data) as SseEvent;
+        if (payload.type === 'mood_update') {
+          setPartnerMood(payload.mood);
+          showToast({
+            message: `${payload.user?.nickname || 'Partner'} updated their mood`,
+            emoji: payload.mood.emoji,
+          });
+        } else if (payload.type === 'mood_cleared') {
+          setPartnerMood(null);
+          showToast({
+            message: `${payload.user?.nickname || 'Partner'} cleared their mood`,
+          });
+        }
+      } catch (err) {
+        console.error('Failed to parse SSE payload:', err);
+      }
+    };
+
     function connectStream() {
       if (es) {
+        es.removeEventListener('mood_update', handleSseMessage as EventListener);
+        es.removeEventListener('mood_cleared', handleSseMessage as EventListener);
         es.close();
       }
 
@@ -99,6 +158,8 @@ export const App: React.FC = () => {
       es.onerror = () => {
         setSseConnected(false);
         if (es) {
+          es.removeEventListener('mood_update', handleSseMessage as EventListener);
+          es.removeEventListener('mood_cleared', handleSseMessage as EventListener);
           es.close();
           es = null;
         }
@@ -110,28 +171,10 @@ export const App: React.FC = () => {
         }, 5000);
       };
 
-      es.onmessage = (event) => {
-        if (!event.data || event.data.trim() === 'ping') return;
-        try {
-          const payload = JSON.parse(event.data) as SseEvent;
-          if (payload.type === 'mood_update') {
-            setPartnerMood(payload.mood);
-            setToast({
-              message: `${payload.user?.nickname || 'Partner'} updated their mood`,
-              emoji: payload.mood.emoji,
-            });
-            setTimeout(() => setToast(null), 3500);
-          } else if (payload.type === 'mood_cleared') {
-            setPartnerMood(null);
-            setToast({
-              message: `${payload.user?.nickname || 'Partner'} cleared their mood`,
-            });
-            setTimeout(() => setToast(null), 3500);
-          }
-        } catch (err) {
-          console.error('Failed to parse SSE payload:', err);
-        }
-      };
+      // Register named SSE event listeners per W3C specification, plus onmessage fallback
+      es.addEventListener('mood_update', handleSseMessage as EventListener);
+      es.addEventListener('mood_cleared', handleSseMessage as EventListener);
+      es.onmessage = handleSseMessage;
     }
 
     connectStream();
@@ -139,12 +182,14 @@ export const App: React.FC = () => {
     return () => {
       clearTimeout(reconnectTimer);
       if (es) {
+        es.removeEventListener('mood_update', handleSseMessage as EventListener);
+        es.removeEventListener('mood_cleared', handleSseMessage as EventListener);
         es.close();
         es = null;
       }
       setSseConnected(false);
     };
-  }, [session]);
+  }, [session, showToast]);
 
   // Window focus & visibility revalidation
   useEffect(() => {
@@ -181,7 +226,7 @@ export const App: React.FC = () => {
 
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'REFRESH_MOOD') {
-        loadMoods();
+        loadMoods(true);
       }
     };
 
@@ -195,7 +240,7 @@ export const App: React.FC = () => {
   const handlePairSuccess = async (newSession: SessionResponse) => {
     setSession(newSession);
     setPartner(newSession.partner);
-    await loadMoods();
+    await loadMoods(true);
     registerServiceWorker().catch((err) =>
       console.warn('SW registration deferred:', err)
     );

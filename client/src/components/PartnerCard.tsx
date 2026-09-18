@@ -28,11 +28,29 @@ export const PartnerCard: React.FC<PartnerCardProps> = ({
   const handleCopyCode = async () => {
     if (!coupleCode) return;
     try {
-      await navigator.clipboard.writeText(coupleCode);
+      if (
+        typeof navigator !== 'undefined' &&
+        navigator.clipboard &&
+        typeof navigator.clipboard.writeText === 'function'
+      ) {
+        await navigator.clipboard.writeText(coupleCode);
+      } else if (typeof document !== 'undefined') {
+        // Fallback for older browsers or insecure contexts
+        const textArea = document.createElement('textarea');
+        textArea.value = coupleCode;
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
+        textArea.style.left = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('Failed to copy couple code:', err);
+      console.warn('Failed to copy couple code:', err);
     }
   };
 

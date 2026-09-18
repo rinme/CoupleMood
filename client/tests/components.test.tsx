@@ -58,6 +58,37 @@ describe('Frontend UI Components', () => {
         expect(handleUnpair).toHaveBeenCalledTimes(1);
       });
     });
+
+    it('uses fallback execCommand copy when navigator.clipboard is unavailable', () => {
+      const originalClipboard = navigator.clipboard;
+      Object.defineProperty(navigator, 'clipboard', {
+        value: undefined,
+        configurable: true,
+      });
+      const execCommandMock = vi.fn().mockReturnValue(true);
+      (document as any).execCommand = execCommandMock;
+
+      render(
+        <Header
+          coupleCode="LOVE-8241"
+          sseConnected={true}
+          user={{ nickname: 'Taylor', slot: 1 }}
+          partner={{ nickname: 'Alex' }}
+          onUnpair={vi.fn()}
+        />
+      );
+
+      const copyBtn = screen.getByTitle('Click to copy Couple Code');
+      fireEvent.click(copyBtn);
+
+      expect(execCommandMock).toHaveBeenCalledWith('copy');
+      expect(screen.getByText('Copied!')).toBeTruthy();
+
+      Object.defineProperty(navigator, 'clipboard', {
+        value: originalClipboard,
+        configurable: true,
+      });
+    });
   });
 
   describe('PairModal Component', () => {
@@ -227,6 +258,61 @@ describe('Frontend UI Components', () => {
       await waitFor(() => {
         expect(handleClear).toHaveBeenCalledTimes(1);
       });
+    });
+
+    it('preserves draft note during background re-render without timestamp change', () => {
+      const { rerender } = render(
+        <MyMoodCard
+          currentMood={{
+            emoji: '🥰',
+            label: 'Loving',
+            note: 'Original note',
+            updated_at: '2026-09-19 01:00:00',
+          }}
+          onSetMood={vi.fn()}
+          onClearMood={vi.fn()}
+        />
+      );
+
+      const noteInput = screen.getByPlaceholderText(/dreaming of a latte/i) as HTMLInputElement;
+      expect(noteInput.value).toBe('Original note');
+
+      // User actively edits draft
+      fireEvent.change(noteInput, { target: { value: 'My custom new draft note' } });
+      expect(noteInput.value).toBe('My custom new draft note');
+
+      // Rerender with same timestamp (e.g. background polling or focus revalidation)
+      rerender(
+        <MyMoodCard
+          currentMood={{
+            emoji: '🥰',
+            label: 'Loving',
+            note: 'Original note',
+            updated_at: '2026-09-19 01:00:00',
+          }}
+          onSetMood={vi.fn()}
+          onClearMood={vi.fn()}
+        />
+      );
+
+      // Draft must NOT be overwritten
+      expect(noteInput.value).toBe('My custom new draft note');
+
+      // But when a fresh mood with new updated_at arrives, it updates
+      rerender(
+        <MyMoodCard
+          currentMood={{
+            emoji: '🥰',
+            label: 'Loving',
+            note: 'Fresh note from server',
+            updated_at: '2026-09-19 01:05:00',
+          }}
+          onSetMood={vi.fn()}
+          onClearMood={vi.fn()}
+        />
+      );
+
+      expect(noteInput.value).toBe('Fresh note from server');
     });
   });
 

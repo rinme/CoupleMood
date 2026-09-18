@@ -5,7 +5,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import App from '../src/App.js';
 import { api } from '../src/api.js';
 
-// Mock EventSource
+// Mock EventSource supporting W3C addEventListener/removeEventListener and dispatchEvent
 class MockEventSource {
   static instances: MockEventSource[] = [];
   url: string;
@@ -13,6 +13,7 @@ class MockEventSource {
   onerror: (() => void) | null = null;
   onmessage: ((event: { data: string }) => void) | null = null;
   closed = false;
+  listeners: Map<string, Set<EventListener>> = new Map();
 
   constructor(url: string) {
     this.url = url;
@@ -20,6 +21,31 @@ class MockEventSource {
     setTimeout(() => {
       if (this.onopen && !this.closed) this.onopen();
     }, 10);
+  }
+
+  addEventListener(type: string, listener: EventListener) {
+    if (!this.listeners.has(type)) {
+      this.listeners.set(type, new Set());
+    }
+    this.listeners.get(type)!.add(listener);
+  }
+
+  removeEventListener(type: string, listener: EventListener) {
+    this.listeners.get(type)?.delete(listener);
+  }
+
+  dispatchEvent(event: { type: string; data?: string }) {
+    if (this.closed) return false;
+    const set = this.listeners.get(event.type);
+    if (set) {
+      for (const listener of set) {
+        listener(event as any);
+      }
+    }
+    if (event.type === 'message' && this.onmessage) {
+      this.onmessage(event as any);
+    }
+    return true;
   }
 
   close() {
@@ -50,7 +76,7 @@ describe('App Integration', () => {
     });
   });
 
-  it('renders Dashboard, connects SSE, and updates on real-time SSE event', async () => {
+  it('renders Dashboard, connects SSE, and handles named SSE events (mood_update and mood_cleared)', async () => {
     const mockSession = {
       user: { id: 'u1', nickname: 'Taylor', slot: 1 as const },
       couple: { id: 'c1', code: 'LOVE-1234' },
@@ -76,13 +102,16 @@ describe('App Integration', () => {
       expect(screen.getAllByText('Cozy').length).toBeGreaterThanOrEqual(1);
     });
 
-    // Verify SSE was instantiated
+    // Verify SSE was instantiated and registered named event listeners
     expect(MockEventSource.instances.length).toBeGreaterThan(0);
     const es = MockEventSource.instances[0];
+    expect(es.listeners.get('mood_update')?.size).toBeGreaterThan(0);
+    expect(es.listeners.get('mood_cleared')?.size).toBeGreaterThan(0);
 
-    // Simulate real-time SSE update from Alex
+    // 1. Simulate named SSE event 'mood_update' from Alex
     act(() => {
-      es.onmessage?.({
+      es.dispatchEvent({
+        type: 'mood_update',
         data: JSON.stringify({
           type: 'mood_update',
           mood: {
@@ -103,9 +132,27 @@ describe('App Integration', () => {
       expect(screen.getByText('"Passed my exam!"')).toBeTruthy();
       expect(screen.getByText(/Alex updated their mood/i)).toBeTruthy();
     });
+
+    // 2. Simulate named SSE event 'mood_cleared' from Alex
+    act(() => {
+      es.dispatchEvent({
+        type: 'mood_cleared',
+        data: JSON.stringify({
+          type: 'mood_cleared',
+          mood: null,
+          user: { id: 'u2', nickname: 'Alex' },
+        }),
+      });
+    });
+
+    // Check that partner mood was cleared
+    await waitFor(() => {
+      expect(screen.getByText(/Alex cleared their mood/i)).toBeTruthy();
+      expect(screen.getByText(/Waiting for Alex/i)).toBeTruthy();
+    });
   });
 
-  it('handles broadcast mood and unpairing flow', async () => {
+  it('handles broadcast mood and unpairing flow with SSE cleanup', async () => {
     const mockSession = {
       user: { id: 'u1', nickname: 'Taylor', slot: 1 as const },
       couple: { id: 'c1', code: 'LOVE-1234' },
@@ -155,6 +202,8 @@ describe('App Integration', () => {
       });
     });
 
+    const es = MockEventSource.instances[0];
+
     // Open settings and unpair
     const settingsBtn = screen.getByLabelText('Couple Settings');
     fireEvent.click(settingsBtn);
@@ -165,6 +214,7 @@ describe('App Integration', () => {
     await waitFor(() => {
       expect(api.auth.unpair).toHaveBeenCalled();
       expect(screen.getByText('Enter Room')).toBeTruthy();
+      expect(es.closed).toBe(true);
     });
   });
 });
