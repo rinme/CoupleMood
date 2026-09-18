@@ -1,24 +1,35 @@
-import { describe, it, expect } from 'vitest';
-import { PRESET_MOODS, getThemeStyles, formatRelativeTime } from '../src/presets.js';
+import {
+  PRESET_MOODS,
+  DEFAULT_PRESETS_TH,
+  DEFAULT_PRESETS_EN,
+  getDefaultPresets,
+  getThemeStyles,
+  formatRelativeTime,
+} from '../src/presets.js';
 
 describe('presets.ts', () => {
-  it('defines the 8 preset moods with emoji, label, and colorTheme', () => {
-    expect(PRESET_MOODS).toHaveLength(8);
-    const labels = PRESET_MOODS.map(p => p.label);
-    expect(labels).toContain('Loving');
-    expect(labels).toContain('Cozy');
-    expect(labels).toContain('Busy');
-    expect(labels).toContain('Sleepy');
-    expect(labels).toContain('Excited');
-    expect(labels).toContain('Chilling');
-    expect(labels).toContain('Stressed');
-    expect(labels).toContain('Sick');
+  it('defines the 7 default preset moods prioritizing Missing you and Hungry', () => {
+    expect(PRESET_MOODS).toHaveLength(7);
+    const labels = PRESET_MOODS.map((p) => p.label);
+    expect(labels[0]).toBe('คิดถึง');
+    expect(labels[1]).toBe('หิว');
+    expect(labels).toContain('รักนะ');
+    expect(labels).toContain('ง่วง');
+    expect(labels).toContain('ยุ่งมาก');
+    expect(labels).toContain('ชิลๆ');
+    expect(labels).toContain('ไม่สบาย');
 
     for (const preset of PRESET_MOODS) {
       expect(preset.emoji).toBeTruthy();
       expect(preset.label).toBeTruthy();
       expect(preset.colorTheme).toBeTruthy();
     }
+
+    // English default presets
+    const enPresets = getDefaultPresets('en');
+    expect(enPresets).toHaveLength(7);
+    expect(enPresets[0].label).toBe('Missing you');
+    expect(enPresets[1].label).toBe('Hungry');
   });
 
   it('provides theme styles for each theme and falls back safely to rose', () => {

@@ -52,9 +52,11 @@ export interface SetMoodRequest {
 }
 
 export interface PresetMood {
+  id?: string;
   emoji: string;
   label: string;
   colorTheme: string;
+  color_theme?: string;
   description?: string;
 }
 

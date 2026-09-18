@@ -1,16 +1,31 @@
 import { PresetMood } from './types.js';
 import { Language } from './i18n/types.js';
 
-export const PRESET_MOODS: PresetMood[] = [
-  { emoji: '🥰', label: 'Loving', colorTheme: 'rose', description: 'Feeling warm affection & close' },
-  { emoji: '☕', label: 'Cozy', colorTheme: 'amber', description: 'Relaxing, tea in hand, quiet comfort' },
-  { emoji: '💻', label: 'Busy', colorTheme: 'indigo', description: 'Heads down focusing on work' },
-  { emoji: '😴', label: 'Sleepy', colorTheme: 'purple', description: 'Dozing off or needing deep rest' },
-  { emoji: '🥳', label: 'Excited', colorTheme: 'amber', description: 'Hyped & celebrating good news' },
-  { emoji: '🛋️', label: 'Chilling', colorTheme: 'emerald', description: 'Laid back, taking it slow' },
-  { emoji: '🤯', label: 'Stressed', colorTheme: 'rose', description: 'A lot on the plate, need comfort' },
-  { emoji: '🤒', label: 'Sick', colorTheme: 'teal', description: 'Under the weather, needing extra care' },
+export const DEFAULT_PRESETS_TH: PresetMood[] = [
+  { emoji: '🥺', label: 'คิดถึง', colorTheme: 'rose' },
+  { emoji: '🤤', label: 'หิว', colorTheme: 'amber' },
+  { emoji: '🥰', label: 'รักนะ', colorTheme: 'rose' },
+  { emoji: '😴', label: 'ง่วง', colorTheme: 'purple' },
+  { emoji: '💻', label: 'ยุ่งมาก', colorTheme: 'indigo' },
+  { emoji: '☕', label: 'ชิลๆ', colorTheme: 'amber' },
+  { emoji: '🤒', label: 'ไม่สบาย', colorTheme: 'teal' },
 ];
+
+export const DEFAULT_PRESETS_EN: PresetMood[] = [
+  { emoji: '🥺', label: 'Missing you', colorTheme: 'rose' },
+  { emoji: '🤤', label: 'Hungry', colorTheme: 'amber' },
+  { emoji: '🥰', label: 'Loving', colorTheme: 'rose' },
+  { emoji: '😴', label: 'Sleepy', colorTheme: 'purple' },
+  { emoji: '💻', label: 'Busy', colorTheme: 'indigo' },
+  { emoji: '☕', label: 'Cozy', colorTheme: 'amber' },
+  { emoji: '🤒', label: 'Sick', colorTheme: 'teal' },
+];
+
+export function getDefaultPresets(lang: Language = 'th'): PresetMood[] {
+  return lang === 'en' ? DEFAULT_PRESETS_EN : DEFAULT_PRESETS_TH;
+}
+
+export const PRESET_MOODS: PresetMood[] = DEFAULT_PRESETS_TH;
 
 export interface ThemeStyles {
   bg: string;

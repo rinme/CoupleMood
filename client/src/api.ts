@@ -4,6 +4,7 @@ import {
   MoodResponse,
   SetMoodRequest,
   Mood,
+  PresetMood,
 } from './types.js';
 
 export class ApiError extends Error {
@@ -116,5 +117,77 @@ export const api = {
         body: JSON.stringify({ endpoint }),
       });
     },
+  },
+
+  presets: {
+    async getPresets(lang?: string): Promise<PresetMood[] & { presets: PresetMood[] }> {
+      const query = lang ? `?lang=${encodeURIComponent(lang)}` : '';
+      const data = await fetchApi<{ presets: any[] }>(`/api/presets${query}`, {
+        method: 'GET',
+      });
+      const list: PresetMood[] = (data.presets || []).map((p) => ({
+        id: p.id,
+        emoji: p.emoji,
+        label: p.label,
+        colorTheme: p.colorTheme || p.color_theme || 'rose',
+        color_theme: p.color_theme || p.colorTheme || 'rose',
+      }));
+      const res = [...list] as any;
+      res.presets = list;
+      return res;
+    },
+
+    async savePresets(presets: PresetMood[]): Promise<PresetMood[] & { presets: PresetMood[] }> {
+      const payload = presets.map((p) => ({
+        id: p.id,
+        emoji: p.emoji,
+        label: p.label,
+        colorTheme: p.colorTheme || p.color_theme || 'rose',
+      }));
+      const data = await fetchApi<{ presets: any[] }>('/api/presets', {
+        method: 'PUT',
+        body: JSON.stringify({ presets: payload }),
+      });
+      const list: PresetMood[] = (data.presets || []).map((p) => ({
+        id: p.id,
+        emoji: p.emoji,
+        label: p.label,
+        colorTheme: p.colorTheme || p.color_theme || 'rose',
+        color_theme: p.color_theme || p.colorTheme || 'rose',
+      }));
+      const res = [...list] as any;
+      res.presets = list;
+      return res;
+    },
+
+    async resetPresets(lang?: string): Promise<PresetMood[] & { presets: PresetMood[]; message?: string }> {
+      const query = lang ? `?lang=${encodeURIComponent(lang)}` : '';
+      const data = await fetchApi<{ message: string; presets: any[] }>(`/api/presets/reset${query}`, {
+        method: 'DELETE',
+      });
+      const list: PresetMood[] = (data.presets || []).map((p) => ({
+        id: p.id,
+        emoji: p.emoji,
+        label: p.label,
+        colorTheme: p.colorTheme || p.color_theme || 'rose',
+        color_theme: p.color_theme || p.colorTheme || 'rose',
+      }));
+      const res = [...list] as any;
+      res.presets = list;
+      res.message = data.message;
+      return res;
+    },
+  },
+
+  async getPresets(lang?: string): Promise<PresetMood[] & { presets: PresetMood[] }> {
+    return api.presets.getPresets(lang);
+  },
+
+  async savePresets(presets: PresetMood[]): Promise<PresetMood[] & { presets: PresetMood[] }> {
+    return api.presets.savePresets(presets);
+  },
+
+  async resetPresets(lang?: string): Promise<PresetMood[] & { presets: PresetMood[]; message?: string }> {
+    return api.presets.resetPresets(lang);
   },
 };

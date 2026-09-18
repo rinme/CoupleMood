@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import App from '../src/App.js';
+import { I18nProvider } from '../src/i18n/index.js';
 import { api } from '../src/api.js';
 
 // Mock EventSource supporting W3C addEventListener/removeEventListener and dispatchEvent
@@ -68,7 +69,11 @@ describe('App Integration', () => {
   it('renders PairModal when user is not authenticated', async () => {
     vi.spyOn(api.auth, 'getSession').mockRejectedValue(new Error('Unauthorized'));
 
-    render(<App />);
+    render(
+      <I18nProvider initialLanguage="en">
+        <App />
+      </I18nProvider>
+    );
 
     await waitFor(() => {
       expect(screen.getByText('Enter Room')).toBeTruthy();
@@ -92,7 +97,11 @@ describe('App Integration', () => {
     vi.spyOn(api.auth, 'getSession').mockResolvedValue(mockSession);
     vi.spyOn(api.mood, 'getMoods').mockResolvedValue(mockMoods);
 
-    render(<App />);
+    render(
+      <I18nProvider initialLanguage="en">
+        <App />
+      </I18nProvider>
+    );
 
     // Waits for dashboard to load
     await waitFor(() => {
@@ -175,7 +184,11 @@ describe('App Integration', () => {
     });
     vi.spyOn(api.auth, 'unpair').mockResolvedValue({ success: true });
 
-    render(<App />);
+    render(
+      <I18nProvider initialLanguage="en">
+        <App />
+      </I18nProvider>
+    );
 
     await waitFor(() => {
       expect(screen.getByText('How are you feeling right now?')).toBeTruthy();

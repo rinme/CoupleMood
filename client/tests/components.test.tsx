@@ -7,6 +7,7 @@ import { PairModal } from '../src/components/PairModal.js';
 import { PartnerCard } from '../src/components/PartnerCard.js';
 import { MyMoodCard } from '../src/components/MyMoodCard.js';
 import { PushPrompt } from '../src/components/PushPrompt.js';
+import { I18nProvider } from '../src/i18n/index.js';
 import { api, ApiError } from '../src/api.js';
 
 describe('Frontend UI Components', () => {
@@ -200,11 +201,13 @@ describe('Frontend UI Components', () => {
       const handleClear = vi.fn().mockResolvedValue(undefined);
 
       render(
-        <MyMoodCard
-          currentMood={null}
-          onSetMood={handleSet}
-          onClearMood={handleClear}
-        />
+        <I18nProvider initialLanguage="en">
+          <MyMoodCard
+            currentMood={null}
+            onSetMood={handleSet}
+            onClearMood={handleClear}
+          />
+        </I18nProvider>
       );
 
       expect(screen.getByText('Loving')).toBeTruthy();
@@ -240,16 +243,18 @@ describe('Frontend UI Components', () => {
       const handleClear = vi.fn().mockResolvedValue(undefined);
 
       render(
-        <MyMoodCard
-          currentMood={{
-            emoji: '🥰',
-            label: 'Loving',
-            note: 'Miss you',
-            color_theme: 'rose',
-          }}
-          onSetMood={vi.fn()}
-          onClearMood={handleClear}
-        />
+        <I18nProvider initialLanguage="en">
+          <MyMoodCard
+            currentMood={{
+              emoji: '🥰',
+              label: 'Loving',
+              note: 'Miss you',
+              color_theme: 'rose',
+            }}
+            onSetMood={vi.fn()}
+            onClearMood={handleClear}
+          />
+        </I18nProvider>
       );
 
       const clearBtn = screen.getByTitle('Clear your current status');
@@ -262,16 +267,18 @@ describe('Frontend UI Components', () => {
 
     it('preserves draft note during background re-render without timestamp change', () => {
       const { rerender } = render(
-        <MyMoodCard
-          currentMood={{
-            emoji: '🥰',
-            label: 'Loving',
-            note: 'Original note',
-            updated_at: '2026-09-19 01:00:00',
-          }}
-          onSetMood={vi.fn()}
-          onClearMood={vi.fn()}
-        />
+        <I18nProvider initialLanguage="en">
+          <MyMoodCard
+            currentMood={{
+              emoji: '🥰',
+              label: 'Loving',
+              note: 'Original note',
+              updated_at: '2026-09-19 01:00:00',
+            }}
+            onSetMood={vi.fn()}
+            onClearMood={vi.fn()}
+          />
+        </I18nProvider>
       );
 
       const noteInput = screen.getByPlaceholderText(/dreaming of a latte/i) as HTMLInputElement;
@@ -283,16 +290,18 @@ describe('Frontend UI Components', () => {
 
       // Rerender with same timestamp (e.g. background polling or focus revalidation)
       rerender(
-        <MyMoodCard
-          currentMood={{
-            emoji: '🥰',
-            label: 'Loving',
-            note: 'Original note',
-            updated_at: '2026-09-19 01:00:00',
-          }}
-          onSetMood={vi.fn()}
-          onClearMood={vi.fn()}
-        />
+        <I18nProvider initialLanguage="en">
+          <MyMoodCard
+            currentMood={{
+              emoji: '🥰',
+              label: 'Loving',
+              note: 'Original note',
+              updated_at: '2026-09-19 01:00:00',
+            }}
+            onSetMood={vi.fn()}
+            onClearMood={vi.fn()}
+          />
+        </I18nProvider>
       );
 
       // Draft must NOT be overwritten
@@ -300,16 +309,18 @@ describe('Frontend UI Components', () => {
 
       // But when a fresh mood with new updated_at arrives, it updates
       rerender(
-        <MyMoodCard
-          currentMood={{
-            emoji: '🥰',
-            label: 'Loving',
-            note: 'Fresh note from server',
-            updated_at: '2026-09-19 01:05:00',
-          }}
-          onSetMood={vi.fn()}
-          onClearMood={vi.fn()}
-        />
+        <I18nProvider initialLanguage="en">
+          <MyMoodCard
+            currentMood={{
+              emoji: '🥰',
+              label: 'Loving',
+              note: 'Fresh note from server',
+              updated_at: '2026-09-19 01:05:00',
+            }}
+            onSetMood={vi.fn()}
+            onClearMood={vi.fn()}
+          />
+        </I18nProvider>
       );
 
       expect(noteInput.value).toBe('Fresh note from server');

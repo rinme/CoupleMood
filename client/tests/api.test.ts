@@ -134,4 +134,40 @@ describe('api.ts', () => {
     const unsubRes = await api.push.unsubscribe('https://push.example.com/sub/1');
     expect(unsubRes.success).toBe(true);
   });
+
+  it('handles presets GET, PUT, and DELETE /reset', async () => {
+    const mockPresets = [
+      { id: 'p1', emoji: '🥺', label: 'คิดถึง', color_theme: 'rose' },
+      { id: 'p2', emoji: '🤤', label: 'หิว', color_theme: 'amber' },
+    ];
+
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ presets: mockPresets }),
+      } as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ presets: mockPresets }),
+      } as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ message: 'Presets reset to default', presets: mockPresets }),
+      } as any);
+
+    const getRes = await api.getPresets('th');
+    expect(getRes).toHaveLength(2);
+    expect(getRes[0].label).toBe('คิดถึง');
+    expect(getRes.presets).toHaveLength(2);
+
+    const saveRes = await api.savePresets(mockPresets as any);
+    expect(saveRes).toHaveLength(2);
+
+    const resetRes = await api.resetPresets('th');
+    expect(resetRes).toHaveLength(2);
+    expect(resetRes.message).toBe('Presets reset to default');
+  });
 });
