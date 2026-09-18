@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useMemo, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useMemo, useCallback, ReactNode } from 'react';
 import { Language, TranslationSchema } from './types.js';
 import { th } from './th.js';
 import { en } from './en.js';
@@ -43,7 +43,7 @@ export const I18nProvider: React.FC<I18nProviderProps> = ({ children, initialLan
     return 'th';
   });
 
-  const setLanguage = (lang: Language) => {
+  const setLanguage = useCallback((lang: Language) => {
     setLanguageState(lang);
     if (typeof window !== 'undefined' && window.localStorage) {
       try {
@@ -52,7 +52,7 @@ export const I18nProvider: React.FC<I18nProviderProps> = ({ children, initialLan
         // Ignore localStorage write errors
       }
     }
-  };
+  }, []);
 
   const t = useMemo(() => translations[language] || translations.th, [language]);
 

@@ -32,14 +32,25 @@ describe('presets.ts', () => {
     expect(fallback.badgeText).toContain('rose');
   });
 
-  it('formats relative time human-friendly', () => {
+  it('formats relative time human-friendly in Thai by default and English when requested', () => {
     const now = Date.now();
-    expect(formatRelativeTime(new Date(now - 10 * 1000))).toBe('Just now');
-    expect(formatRelativeTime(new Date(now - 5 * 60 * 1000))).toBe('5m ago');
-    expect(formatRelativeTime(new Date(now - 2 * 60 * 60 * 1000))).toBe('2h ago');
-    expect(formatRelativeTime(new Date(now - 26 * 60 * 60 * 1000))).toBe('Yesterday');
-    expect(formatRelativeTime(new Date(now - 4 * 24 * 60 * 60 * 1000))).toBe('4d ago');
-    expect(formatRelativeTime('')).toBe('Recently');
-    expect(formatRelativeTime('invalid-date')).toBe('Recently');
+
+    // Default Thai
+    expect(formatRelativeTime(new Date(now - 10 * 1000))).toBe('เมื่อสักครู่');
+    expect(formatRelativeTime(new Date(now - 5 * 60 * 1000))).toBe('5 นาทีที่แล้ว');
+    expect(formatRelativeTime(new Date(now - 2 * 60 * 60 * 1000))).toBe('2 ชม. ที่แล้ว');
+    expect(formatRelativeTime(new Date(now - 26 * 60 * 60 * 1000))).toBe('เมื่อวาน');
+    expect(formatRelativeTime(new Date(now - 4 * 24 * 60 * 60 * 1000))).toBe('4 วันที่แล้ว');
+    expect(formatRelativeTime('')).toBe('เมื่อสักครู่');
+    expect(formatRelativeTime('invalid-date')).toBe('เมื่อสักครู่');
+
+    // Explicit English
+    expect(formatRelativeTime(new Date(now - 10 * 1000), 'en')).toBe('Just now');
+    expect(formatRelativeTime(new Date(now - 5 * 60 * 1000), 'en')).toBe('5m ago');
+    expect(formatRelativeTime(new Date(now - 2 * 60 * 60 * 1000), 'en')).toBe('2h ago');
+    expect(formatRelativeTime(new Date(now - 26 * 60 * 60 * 1000), 'en')).toBe('Yesterday');
+    expect(formatRelativeTime(new Date(now - 4 * 24 * 60 * 60 * 1000), 'en')).toBe('4d ago');
+    expect(formatRelativeTime('', 'en')).toBe('Recently');
+    expect(formatRelativeTime('invalid-date', 'en')).toBe('Recently');
   });
 });
