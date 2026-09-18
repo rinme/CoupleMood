@@ -30,6 +30,13 @@ export function getDb(): Database {
 }
 
 /**
+ * Explicitly sets the active Database instance.
+ */
+export function setDb(db: Database): void {
+  dbInstance = db;
+}
+
+/**
  * Initializes the SQLite database, configures pragmas, creates tables,
  * and ensures VAPID keys are initialized.
  */

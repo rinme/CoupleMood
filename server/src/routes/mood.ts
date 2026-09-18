@@ -46,6 +46,11 @@ moodRouter.post('/', async (req, res) => {
     return;
   }
 
+  if (typeof note === 'string' && note.trim().length > 100) {
+    res.status(400).json({ error: 'Note must not exceed 100 characters' });
+    return;
+  }
+
   try {
     const updatedMood = setMood(
       req.user.id,
@@ -67,7 +72,7 @@ moodRouter.post('/', async (req, res) => {
       });
 
       const noteSnippet = updatedMood.note ? ` — "${updatedMood.note}"` : '';
-      await sendPushNotification(req.partner.id, {
+      sendPushNotification(req.partner.id, {
         title: `${req.user.nickname} updated their mood`,
         body: `${updatedMood.emoji} ${updatedMood.label}${noteSnippet}`,
         data: {
@@ -103,7 +108,7 @@ moodRouter.delete('/', async (req, res) => {
         }
       });
 
-      await sendPushNotification(req.partner.id, {
+      sendPushNotification(req.partner.id, {
         title: `${req.user.nickname} cleared their mood`,
         body: `${req.user.nickname} cleared their mood status`,
         data: {

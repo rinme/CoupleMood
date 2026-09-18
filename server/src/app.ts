@@ -2,7 +2,7 @@ import express from 'express';
 import type { Express } from 'express';
 import cookieParser from 'cookie-parser';
 import type { Database } from 'better-sqlite3';
-import { initDb } from './db.js';
+import { setDb } from './db.js';
 import { authRouter } from './routes/auth.js';
 import { moodRouter } from './routes/mood.js';
 import { pushRouter } from './routes/push.js';
@@ -13,8 +13,7 @@ import { streamRouter } from './routes/stream.js';
  */
 export function createApp(db?: Database): Express {
   if (db) {
-    // If a database instance was provided, ensure it's set as active
-    // Note: getDb() uses dbInstance
+    setDb(db);
   }
 
   const app = express();

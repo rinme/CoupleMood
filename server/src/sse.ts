@@ -20,7 +20,11 @@ export function addConnection(userId: string, res: Response): () => void {
   // Periodic heartbeat every 25 seconds
   const interval = setInterval(() => {
     try {
-      res.write(': ping\n\n');
+      if (!res.destroyed && !res.writableEnded) {
+        res.write(': ping\n\n');
+      } else {
+        cleanup();
+      }
     } catch {
       cleanup();
     }
@@ -63,7 +67,9 @@ export function notifyPartner(partnerUserId: string, eventData: Record<string, u
 
   for (const client of userConnections) {
     try {
-      client.write(payload);
+      if (!client.destroyed && !client.writableEnded) {
+        client.write(payload);
+      }
     } catch {
       // Errors handled on stream close
     }
