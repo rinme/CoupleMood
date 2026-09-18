@@ -7,11 +7,14 @@
     "server"
   ],
   "scripts": {
+    "dev": "bun --cwd client dev",
+    "build": "bun --cwd client build",
+    "start": "bun server/src/index.ts",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "build": "npm --prefix server run build"
+    "test:watch": "vitest"
   },
   "devDependencies": {
+    "happy-dom": "^20.14.5",
     "typescript": "^5.7.3",
     "vitest": "^3.0.7"
   },
