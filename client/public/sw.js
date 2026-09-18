@@ -27,11 +27,9 @@ self.addEventListener('activate', (event) => {
       .keys()
       .then((cacheNames) =>
         Promise.all(
-          cacheNames.map((name) => {
-            if (name !== CACHE_NAME) {
-              return caches.delete(name);
-            }
-          })
+          cacheNames
+            .filter((name) => name !== CACHE_NAME)
+            .map((name) => caches.delete(name))
         )
       )
       .then(() => self.clients.claim())
@@ -68,9 +66,12 @@ self.addEventListener('fetch', (event) => {
         .then((response) => {
           if (response && response.status === 200) {
             const responseClone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, responseClone);
-            });
+            caches
+              .open(CACHE_NAME)
+              .then((cache) => {
+                cache.put(request, responseClone);
+              })
+              .catch(() => {});
           }
           return response;
         })
@@ -100,9 +101,12 @@ self.addEventListener('fetch', (event) => {
             networkResponse.type === 'basic'
           ) {
             const responseClone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, responseClone);
-            });
+            caches
+              .open(CACHE_NAME)
+              .then((cache) => {
+                cache.put(request, responseClone);
+              })
+              .catch(() => {});
           }
           return networkResponse;
         })
@@ -131,13 +135,14 @@ self.addEventListener('push', (event) => {
   }
 
   const title = payload.title || 'Mood Sender';
+  const targetUrl = (payload.data && payload.data.url) || payload.url || '/';
   const options = {
     body: payload.body || 'Your partner shared a mood update.',
     icon: payload.icon || '/icons/icon-192.png',
     badge: payload.badge || '/icons/badge.png',
     tag: 'couple-mood',
     renotify: true,
-    data: payload.data || { url: '/' },
+    data: { ...(payload.data || {}), url: targetUrl },
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
@@ -169,11 +174,11 @@ self.addEventListener('notificationclick', (event) => {
             client.url === targetUrl ||
             client.url.endsWith(targetUrl)
           ) {
-            if (client.focus) {
-              client.focus();
-            }
             if (client.postMessage) {
               client.postMessage({ type: 'REFRESH_MOOD' });
+            }
+            if (client.focus) {
+              return client.focus();
             }
             return;
           }
