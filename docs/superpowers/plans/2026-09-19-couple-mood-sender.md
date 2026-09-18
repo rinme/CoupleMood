@@ -11,8 +11,8 @@
 **Spec:** [`docs/superpowers/specs/2026-09-19-couple-mood-sender-design.md`](file:///home/rinme/Projects/CoupleMood/docs/superpowers/specs/2026-09-19-couple-mood-sender-design.md)
 
 ## Global Constraints
-- Node.js runtime: v26.8.2
-- Bun runtime available: 1.4.2
+- STRICT CONSTRAINT: USE BUN ONLY. NEVER USE NPM OR NPX.
+- Runtime: Bun 1.4.2 (and Node.js v26.8.2)
 - Express 4.x/5.x with TypeScript
 - SQLite via `better-sqlite3`
 - Session cookie: `mood_session`, HTTP-only, `SameSite=Lax`, `Path=/`
