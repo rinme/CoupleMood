@@ -538,4 +538,28 @@ describe('Service Worker (client/public/sw.js)', () => {
     expect(mockCache.put).toHaveBeenCalledWith(assetRequest, expect.anything());
     expect(res.status).toBe(200);
   });
+
+  it('silently handles cache write errors on quota limit without failing fetch', async () => {
+    loadServiceWorker();
+
+    const fetchHandler = listeners['fetch'][0];
+    let respondWithPromise: Promise<any> | null = null;
+
+    mockCache.put.mockRejectedValueOnce(new Error('QuotaExceededError'));
+
+    const apiRequest = {
+      url: 'http://localhost:3000/api/mood',
+      method: 'GET',
+    };
+    fetchHandler({
+      request: apiRequest,
+      respondWith: (val: Promise<any>) => {
+        respondWithPromise = val;
+      },
+    });
+
+    expect(respondWithPromise).not.toBeNull();
+    const res = await respondWithPromise;
+    expect(res.status).toBe(200);
+  });
 });
