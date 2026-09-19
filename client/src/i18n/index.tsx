@@ -12,6 +12,7 @@ export const STORAGE_KEY = 'couple_mood_lang';
 export interface I18nContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
+  toggleLanguage: () => void;
   t: TranslationSchema;
 }
 
@@ -20,7 +21,7 @@ const translations: Record<Language, TranslationSchema> = {
   en,
 };
 
-const I18nContext = createContext<I18nContextType | null>(null);
+export const I18nContext = createContext<I18nContextType | null>(null);
 
 export interface I18nProviderProps {
   children: ReactNode;
@@ -54,19 +55,28 @@ export const I18nProvider: React.FC<I18nProviderProps> = ({ children, initialLan
     }
   }, []);
 
+  const toggleLanguage = useCallback(() => {
+    setLanguage(language === 'th' ? 'en' : 'th');
+  }, [language, setLanguage]);
+
   const t = useMemo(() => translations[language] || translations.th, [language]);
 
   const value = useMemo(
     () => ({
       language,
       setLanguage,
+      toggleLanguage,
       t,
     }),
-    [language, t]
+    [language, setLanguage, toggleLanguage, t]
   );
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 };
+
+export function useHasI18nProvider(): boolean {
+  return useContext(I18nContext) !== null;
+}
 
 export function useTranslation(): I18nContextType {
   const context = useContext(I18nContext);
@@ -74,6 +84,7 @@ export function useTranslation(): I18nContextType {
     return {
       language: 'th',
       setLanguage: () => {},
+      toggleLanguage: () => {},
       t: translations.th,
     };
   }

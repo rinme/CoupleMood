@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Clock, Copy, Check, Users, MessageSquareQuote, HeartHandshake } from 'lucide-react';
 import { Partner, Mood } from '../types.js';
 import { getThemeStyles, formatRelativeTime } from '../presets.js';
+import { useTranslation } from '../i18n/index.js';
 
 interface PartnerCardProps {
   partner: Partner | null;
@@ -14,6 +15,7 @@ export const PartnerCard: React.FC<PartnerCardProps> = ({
   partnerMood,
   coupleCode,
 }) => {
+  const { language, t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [, setTick] = useState(0);
 
@@ -61,9 +63,9 @@ export const PartnerCard: React.FC<PartnerCardProps> = ({
         <div className="w-14 h-14 mx-auto rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 mb-3 shadow-sm">
           <HeartHandshake className="w-7 h-7" />
         </div>
-        <h3 className="text-xl font-bold text-[#2D2825]">Waiting for Partner</h3>
+        <h3 className="text-xl font-bold text-[#2D2825]">{t.partnerCard.waitingTitle}</h3>
         <p className="text-xs sm:text-sm text-[#8C827A] mt-1.5 max-w-xs mx-auto leading-relaxed">
-          Share your room code with your partner so they can join and exchange moods with you.
+          {t.partnerCard.waitingDesc}
         </p>
 
         {coupleCode && (
@@ -77,7 +79,7 @@ export const PartnerCard: React.FC<PartnerCardProps> = ({
               className="p-1.5 rounded-xl bg-white border border-[#E8E2D9] hover:border-rose-300 text-[#2D2825] active:scale-95 shadow-xs transition-all flex items-center space-x-1 text-xs font-semibold px-2.5"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copied ? 'Copied' : 'Copy'}</span>
+              <span>{copied ? t.partnerCard.copied : t.partnerCard.copy}</span>
             </button>
           </div>
         )}
@@ -92,9 +94,11 @@ export const PartnerCard: React.FC<PartnerCardProps> = ({
         <div className="flex items-center justify-between mb-4">
           <span className="text-xs font-bold uppercase tracking-wider text-[#8C827A] flex items-center space-x-1.5">
             <Users className="w-3.5 h-3.5 text-rose-400" />
-            <span>{partner.nickname}'s Mood</span>
+            <span>
+              {language === 'th' ? `ความรู้สึกของ ${partner.nickname}` : `${partner.nickname}'s Mood`}
+            </span>
           </span>
-          <span className="text-[11px] text-[#8C827A] italic">Quiet for now</span>
+          <span className="text-[11px] text-[#8C827A] italic">{t.partnerCard.quietForNow}</span>
         </div>
 
         <div className="py-8 text-center flex flex-col items-center">
@@ -102,10 +106,10 @@ export const PartnerCard: React.FC<PartnerCardProps> = ({
             🌱
           </div>
           <h4 className="text-lg font-semibold text-[#2D2825]">
-            Waiting for {partner.nickname}
+            {t.partnerCard.waitingFor} {partner.nickname}
           </h4>
           <p className="text-xs text-[#8C827A] mt-1 max-w-xs leading-relaxed">
-            {partner.nickname} hasn't posted a mood yet today. Their status will update here automatically.
+            {partner.nickname} {t.partnerCard.notPostedYet}
           </p>
         </div>
       </section>
@@ -115,7 +119,7 @@ export const PartnerCard: React.FC<PartnerCardProps> = ({
   // 3. Partner has an active mood
   const themeKey = partnerMood.colorTheme || partnerMood.color_theme || 'rose';
   const theme = getThemeStyles(themeKey);
-  const relativeTime = formatRelativeTime(partnerMood.updated_at);
+  const relativeTime = formatRelativeTime(partnerMood.updated_at, language);
 
   return (
     <section
@@ -132,7 +136,9 @@ export const PartnerCard: React.FC<PartnerCardProps> = ({
             <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500" />
           </span>
           <span className="text-xs font-bold uppercase tracking-wider text-[#2D2825]">
-            {partner.nickname}'s Current Mood
+            {language === 'th'
+              ? `ความรู้สึกของ ${partner.nickname} ในตอนนี้`
+              : `${partner.nickname}${t.partnerCard.currentMoodSuffix}`}
           </span>
         </div>
 

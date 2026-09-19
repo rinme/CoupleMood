@@ -8,8 +8,10 @@ import { PartnerCard } from './components/PartnerCard.js';
 import { MyMoodCard } from './components/MyMoodCard.js';
 import { PushPrompt } from './components/PushPrompt.js';
 import { Heart } from 'lucide-react';
+import { I18nProvider, useTranslation, useHasI18nProvider } from './i18n/index.js';
 
-export const App: React.FC = () => {
+export const AppContent: React.FC = () => {
+  const { t } = useTranslation();
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [myMood, setMyMood] = useState<Mood | null>(null);
   const [partnerMood, setPartnerMood] = useState<Mood | null>(null);
@@ -126,14 +128,16 @@ export const App: React.FC = () => {
         const payload = JSON.parse(event.data) as SseEvent;
         if (payload.type === 'mood_update') {
           setPartnerMood(payload.mood);
+          const partnerName = payload.user?.nickname || t.toasts.defaultPartnerName;
           showToast({
-            message: `${payload.user?.nickname || 'Partner'} updated their mood`,
+            message: `${partnerName} ${t.toasts.moodUpdated}`,
             emoji: payload.mood.emoji,
           });
         } else if (payload.type === 'mood_cleared') {
           setPartnerMood(null);
+          const partnerName = payload.user?.nickname || t.toasts.defaultPartnerName;
           showToast({
-            message: `${payload.user?.nickname || 'Partner'} cleared their mood`,
+            message: `${partnerName} ${t.toasts.moodCleared}`,
           });
         }
       } catch (err) {
@@ -189,7 +193,7 @@ export const App: React.FC = () => {
       }
       setSseConnected(false);
     };
-  }, [session, showToast]);
+  }, [session, showToast, t]);
 
   // Window focus & visibility revalidation
   useEffect(() => {
@@ -278,7 +282,7 @@ export const App: React.FC = () => {
           <Heart className="w-6 h-6 fill-rose-500 text-rose-500" />
         </div>
         <p className="text-xs font-semibold uppercase tracking-wider text-[#8C827A]">
-          Connecting...
+          {t.common.connecting}
         </p>
       </div>
     );
@@ -328,12 +332,24 @@ export const App: React.FC = () => {
 
         {/* Quiet footer */}
         <footer className="pt-4 pb-2 text-center text-[11px] text-[#8C827A] flex items-center justify-center space-x-1">
-          <span>Crafted with</span>
+          <span>{t.footer.craftedWith}</span>
           <Heart className="w-3 h-3 fill-rose-400 text-rose-400 inline" />
-          <span>for couples</span>
+          <span>{t.footer.forCouples}</span>
         </footer>
       </main>
     </div>
+  );
+};
+
+export const App: React.FC = () => {
+  const hasProvider = useHasI18nProvider();
+  if (hasProvider) {
+    return <AppContent />;
+  }
+  return (
+    <I18nProvider>
+      <AppContent />
+    </I18nProvider>
   );
 };
 

@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, X } from 'lucide-react';
 import { isPushSupported } from '../sw-register.js';
+import { useTranslation } from '../i18n/index.js';
 
 interface PushPromptProps {
   onSubscribe: () => Promise<void>;
 }
 
 export const PushPrompt: React.FC<PushPromptProps> = ({ onSubscribe }) => {
+  const { t } = useTranslation();
   const [isVisible, setIsVisible] = useState(false);
   const [isSubscribing, setIsSubscribing] = useState(false);
 
@@ -49,7 +51,7 @@ export const PushPrompt: React.FC<PushPromptProps> = ({ onSubscribe }) => {
       <button
         type="button"
         onClick={handleDismiss}
-        aria-label="Dismiss notification prompt"
+        aria-label={t.pushPrompt.dismissAria}
         className="absolute top-2.5 right-2.5 text-[#8C827A] hover:text-[#2D2825] p-1 rounded-full hover:bg-black/5"
       >
         <X className="w-4 h-4" />
@@ -62,10 +64,10 @@ export const PushPrompt: React.FC<PushPromptProps> = ({ onSubscribe }) => {
 
         <div className="flex-1">
           <h4 className="text-sm font-bold text-[#2D2825]">
-            Never miss a mood update
+            {t.pushPrompt.title}
           </h4>
           <p className="text-xs text-[#8C827A] mt-0.5 leading-relaxed">
-            Get an instant notification on your device whenever your partner shares how they feel.
+            {t.pushPrompt.desc}
           </p>
 
           <div className="flex items-center space-x-2.5 mt-3">
@@ -76,11 +78,11 @@ export const PushPrompt: React.FC<PushPromptProps> = ({ onSubscribe }) => {
               className="bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold py-1.5 px-3.5 rounded-xl shadow-xs active:scale-95 transition-all flex items-center space-x-1.5 disabled:opacity-50"
             >
               {isSubscribing ? (
-                <span>Enabling...</span>
+                <span>{t.pushPrompt.enabling}</span>
               ) : (
                 <>
                   <Bell className="w-3.5 h-3.5" />
-                  <span>Enable Notifications</span>
+                  <span>{t.pushPrompt.enable}</span>
                 </>
               )}
             </button>
@@ -90,7 +92,7 @@ export const PushPrompt: React.FC<PushPromptProps> = ({ onSubscribe }) => {
               onClick={handleDismiss}
               className="text-xs font-medium text-[#8C827A] hover:text-[#2D2825] py-1.5 px-2.5 rounded-xl hover:bg-black/5 active:scale-95 transition-all"
             >
-              Not now
+              {t.pushPrompt.notNow}
             </button>
           </div>
         </div>

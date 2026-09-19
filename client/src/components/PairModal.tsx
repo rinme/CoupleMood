@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { Heart, AlertCircle, ArrowRight, Dices } from 'lucide-react';
 import { api, ApiError } from '../api.js';
 import { SessionResponse } from '../types.js';
+import { useTranslation } from '../i18n/index.js';
 
 interface PairModalProps {
   onPairSuccess: (session: SessionResponse) => void;
 }
 
 export const PairModal: React.FC<PairModalProps> = ({ onPairSuccess }) => {
+  const { language, toggleLanguage, t } = useTranslation();
   const [code, setCode] = useState('');
   const [nickname, setNickname] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -40,12 +42,12 @@ export const PairModal: React.FC<PairModalProps> = ({ onPairSuccess }) => {
     const cleanNick = nickname.trim();
 
     if (!cleanCode) {
-      setErrorMessage('Please enter or generate a couple code.');
+      setErrorMessage(t.pairing.errorEmptyCode);
       return;
     }
 
     if (!cleanNick) {
-      setErrorMessage('Please enter what your partner calls you.');
+      setErrorMessage(t.pairing.errorEmptyNickname);
       return;
     }
 
@@ -61,12 +63,12 @@ export const PairModal: React.FC<PairModalProps> = ({ onPairSuccess }) => {
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 409) {
-          setErrorMessage('Couple code is full! Please enter another code or generate a new one.');
+          setErrorMessage(t.pairing.errorRoomFull);
         } else {
-          setErrorMessage(err.message || 'Failed to join couple. Please check your code.');
+          setErrorMessage(err.message || t.pairing.errorDefault);
         }
       } else {
-        setErrorMessage('Unable to connect to server. Please try again.');
+        setErrorMessage(t.pairing.errorNetwork);
       }
     } finally {
       setIsLoading(false);
@@ -75,17 +77,36 @@ export const PairModal: React.FC<PairModalProps> = ({ onPairSuccess }) => {
 
   return (
     <div className="min-h-screen bg-[#FAF7F2] flex items-center justify-center p-4 px-5">
-      <div className="max-w-md w-full bg-white/80 backdrop-blur-md border border-[#E8E2D9] rounded-3xl p-6 sm:p-8 shadow-cozy-lg">
+      <div className="max-w-md w-full bg-white/80 backdrop-blur-md border border-[#E8E2D9] rounded-3xl p-6 sm:p-8 shadow-cozy-lg relative">
+        {/* Language Switcher Pill */}
+        <div className="flex justify-end mb-2">
+          <button
+            type="button"
+            onClick={toggleLanguage}
+            title={language === 'th' ? 'Switch to English' : 'เปลี่ยนเป็นภาษาไทย'}
+            aria-label="Toggle language (TH / EN)"
+            className="group flex items-center bg-[#FAF7F2] hover:bg-white text-xs font-semibold py-1 px-2.5 rounded-full border border-[#E8E2D9] shadow-xs hover:border-rose-300 active:scale-95 transition-all text-[#2D2825]"
+          >
+            <span className={language === 'th' ? 'text-rose-600 font-bold' : 'text-[#8C827A]'}>
+              TH
+            </span>
+            <span className="text-[#D3CBC2] mx-0.5">|</span>
+            <span className={language === 'en' ? 'text-rose-600 font-bold' : 'text-[#8C827A]'}>
+              EN
+            </span>
+          </button>
+        </div>
+
         {/* Header Branding */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-rose-100/80 text-rose-500 mb-4 shadow-sm">
             <Heart className="w-8 h-8 fill-rose-500 text-rose-500" />
           </div>
           <h2 className="text-2xl sm:text-3xl font-bold text-[#2D2825] tracking-tight">
-            Mood Sender
+            {t.pairing.title}
           </h2>
           <p className="text-sm text-[#8C827A] mt-2 max-w-xs mx-auto leading-relaxed">
-            A quiet, intimate space to share how you are feeling throughout the day.
+            {t.pairing.tagline}
           </p>
         </div>
 
@@ -102,7 +123,7 @@ export const PairModal: React.FC<PairModalProps> = ({ onPairSuccess }) => {
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label htmlFor="couple-code" className="text-xs font-semibold text-[#2D2825] uppercase tracking-wider">
-                Couple Code
+                {t.pairing.coupleCodeLabel}
               </label>
               <button
                 type="button"
@@ -110,7 +131,7 @@ export const PairModal: React.FC<PairModalProps> = ({ onPairSuccess }) => {
                 className="text-xs font-medium text-rose-600 hover:text-rose-700 flex items-center space-x-1 hover:underline active:scale-95 transition-transform"
               >
                 <Dices className="w-3.5 h-3.5" />
-                <span>Generate Random</span>
+                <span>{t.pairing.generateRandom}</span>
               </button>
             </div>
             <div className="relative">
@@ -119,34 +140,34 @@ export const PairModal: React.FC<PairModalProps> = ({ onPairSuccess }) => {
                 type="text"
                 value={code}
                 onChange={handleCodeChange}
-                placeholder="e.g. LOVE-8241"
+                placeholder={t.pairing.codePlaceholder}
                 maxLength={20}
                 className="w-full bg-[#FAF7F2] border border-[#E8E2D9] rounded-2xl px-4 py-3 text-base font-mono font-bold tracking-wider text-[#2D2825] placeholder:text-[#8C827A]/60 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:bg-white transition-all uppercase"
                 disabled={isLoading}
               />
             </div>
             <p className="text-[11px] text-[#8C827A] mt-1.5 leading-normal">
-              Enter the code your partner shared with you, or create one and send it to them.
+              {t.pairing.codeHelp}
             </p>
           </div>
 
           {/* Nickname Section */}
           <div>
             <label htmlFor="nickname" className="block text-xs font-semibold text-[#2D2825] uppercase tracking-wider mb-1.5">
-              Your Nickname
+              {t.pairing.nicknameLabel}
             </label>
             <input
               id="nickname"
               type="text"
               value={nickname}
               onChange={handleNicknameChange}
-              placeholder="e.g. Honey, Alex, Sweetie"
+              placeholder={t.pairing.nicknamePlaceholder}
               maxLength={30}
               className="w-full bg-[#FAF7F2] border border-[#E8E2D9] rounded-2xl px-4 py-3 text-base text-[#2D2825] placeholder:text-[#8C827A]/60 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:bg-white transition-all"
               disabled={isLoading}
             />
             <p className="text-[11px] text-[#8C827A] mt-1.5 leading-normal">
-              What does your partner call you?
+              {t.pairing.nicknameHelp}
             </p>
           </div>
 
@@ -160,7 +181,7 @@ export const PairModal: React.FC<PairModalProps> = ({ onPairSuccess }) => {
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
               <>
-                <span>Enter Room</span>
+                <span>{t.pairing.enterRoom}</span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}

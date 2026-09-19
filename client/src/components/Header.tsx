@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Heart, Copy, Check, Radio, Settings, LogOut, X } from 'lucide-react';
+import { useTranslation } from '../i18n/index.js';
 
 interface HeaderProps {
   coupleCode?: string;
@@ -16,6 +17,7 @@ export const Header: React.FC<HeaderProps> = ({
   partner,
   onUnpair,
 }) => {
+  const { language, setLanguage, toggleLanguage, t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [unpairing, setUnpairing] = useState(false);
@@ -70,7 +72,7 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
             <div>
               <h1 className="text-lg font-bold tracking-tight text-[#2D2825] leading-tight">
-                Mood Sender
+                {t.header.appName}
               </h1>
               <div className="flex items-center space-x-1.5 text-xs text-[#8C827A]">
                 <span className="relative flex h-2 w-2">
@@ -83,25 +85,42 @@ export const Header: React.FC<HeaderProps> = ({
                     }`}
                   />
                 </span>
-                <span>{sseConnected ? 'Live sync' : 'Connecting...'}</span>
+                <span>{sseConnected ? t.header.liveSync : t.header.connecting}</span>
               </div>
             </div>
           </div>
 
           {/* Right Action Area */}
           <div className="flex items-center space-x-2">
+            {/* Clean Tactile TH | EN Language Switcher */}
+            <button
+              type="button"
+              onClick={toggleLanguage}
+              title={language === 'th' ? 'Switch to English' : 'เปลี่ยนเป็นภาษาไทย'}
+              aria-label="Toggle language (TH / EN)"
+              className="group flex items-center bg-white/90 hover:bg-white text-xs font-semibold py-1 px-2.5 rounded-full border border-[#E8E2D9] shadow-sm hover:border-rose-300 active:scale-95 transition-all text-[#2D2825]"
+            >
+              <span className={language === 'th' ? 'text-rose-600 font-bold' : 'text-[#8C827A]'}>
+                TH
+              </span>
+              <span className="text-[#D3CBC2] mx-0.5">|</span>
+              <span className={language === 'en' ? 'text-rose-600 font-bold' : 'text-[#8C827A]'}>
+                EN
+              </span>
+            </button>
+
             {coupleCode && (
               <button
                 type="button"
                 onClick={handleCopyCode}
-                title="Click to copy Couple Code"
+                title={t.header.copyCodeTooltip}
                 className="group flex items-center space-x-1.5 bg-white/90 hover:bg-white text-xs font-medium text-[#2D2825] py-1.5 px-3 rounded-full border border-[#E8E2D9] shadow-sm hover:border-rose-300 active:scale-95 transition-all"
               >
                 <span className="text-[#8C827A] group-hover:text-rose-500 transition-colors">
                   {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                 </span>
                 <span className="font-mono font-semibold tracking-wide">
-                  {copied ? 'Copied!' : coupleCode}
+                  {copied ? t.header.copied : coupleCode}
                 </span>
               </button>
             )}
@@ -109,7 +128,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={() => setShowSettings(true)}
-              aria-label="Couple Settings"
+              aria-label={t.header.settingsTitle}
               className="p-2 rounded-full text-[#8C827A] hover:text-[#2D2825] hover:bg-white/80 active:scale-95 border border-transparent hover:border-[#E8E2D9] transition-all"
             >
               <Settings className="w-5 h-5" />
@@ -130,36 +149,63 @@ export const Header: React.FC<HeaderProps> = ({
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="text-xl font-bold text-[#2D2825] mb-1">Couple Settings</h3>
-            <p className="text-xs text-[#8C827A] mb-5">Manage your shared room and session.</p>
+            <h3 className="text-xl font-bold text-[#2D2825] mb-1">{t.header.settingsTitle}</h3>
+            <p className="text-xs text-[#8C827A] mb-5">{t.header.settingsDesc}</p>
 
             <div className="space-y-3 mb-6 bg-white/70 p-4 rounded-2xl border border-[#E8E2D9]">
               <div className="flex justify-between items-center text-sm">
-                <span className="text-[#8C827A]">Your Nickname:</span>
-                <span className="font-semibold text-[#2D2825]">{user?.nickname ?? 'You'}</span>
+                <span className="text-[#8C827A]">{t.header.yourNickname}</span>
+                <span className="font-semibold text-[#2D2825]">{user?.nickname ?? t.header.you}</span>
               </div>
               <div className="flex justify-between items-center text-sm">
-                <span className="text-[#8C827A]">Partner:</span>
+                <span className="text-[#8C827A]">{t.header.partner}</span>
                 <span className="font-semibold text-[#2D2825]">
-                  {partner?.nickname ?? 'Not joined yet'}
+                  {partner?.nickname ?? t.header.notJoinedYet}
                 </span>
               </div>
               <div className="flex justify-between items-center text-sm">
-                <span className="text-[#8C827A]">Couple Code:</span>
+                <span className="text-[#8C827A]">{t.header.coupleCode}</span>
                 <span className="font-mono font-bold text-rose-600">{coupleCode}</span>
               </div>
               <div className="flex justify-between items-center text-sm">
-                <span className="text-[#8C827A]">Live Status:</span>
+                <span className="text-[#8C827A]">{t.header.liveStatus}</span>
                 <span className="inline-flex items-center space-x-1 font-medium text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                   <Radio className="w-3 h-3 text-emerald-500 animate-pulse" />
-                  <span>{sseConnected ? 'Connected' : 'Offline'}</span>
+                  <span>{sseConnected ? t.header.connected : t.header.offline}</span>
                 </span>
+              </div>
+              <div className="flex justify-between items-center text-sm pt-1 border-t border-[#E8E2D9]/60">
+                <span className="text-[#8C827A]">{t.header.language}:</span>
+                <div className="flex items-center space-x-1 bg-[#FAF7F2] p-0.5 rounded-xl border border-[#E8E2D9]">
+                  <button
+                    type="button"
+                    onClick={() => setLanguage('th')}
+                    className={`px-2 py-0.5 text-xs rounded-lg font-medium transition-all ${
+                      language === 'th'
+                        ? 'bg-rose-500 text-white font-bold shadow-xs'
+                        : 'text-[#8C827A] hover:text-[#2D2825]'
+                    }`}
+                  >
+                    ไทย (TH)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLanguage('en')}
+                    className={`px-2 py-0.5 text-xs rounded-lg font-medium transition-all ${
+                      language === 'en'
+                        ? 'bg-rose-500 text-white font-bold shadow-xs'
+                        : 'text-[#8C827A] hover:text-[#2D2825]'
+                    }`}
+                  >
+                    EN
+                  </button>
+                </div>
               </div>
             </div>
 
             <div className="border-t border-[#E8E2D9] pt-4">
               <p className="text-xs text-[#8C827A] mb-3 leading-relaxed">
-                Unpairing will clear your session on this device. You will need your Couple Code to reconnect.
+                {t.header.unpairDesc}
               </p>
               <button
                 type="button"
@@ -168,7 +214,7 @@ export const Header: React.FC<HeaderProps> = ({
                 className="w-full flex items-center justify-center space-x-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-medium py-2.5 px-4 rounded-xl border border-rose-200 active:scale-[0.98] transition-all disabled:opacity-50"
               >
                 <LogOut className="w-4 h-4" />
-                <span>{unpairing ? 'Unpairing...' : 'Unpair Couple'}</span>
+                <span>{unpairing ? t.header.unpairing : t.header.unpairButton}</span>
               </button>
             </div>
           </div>

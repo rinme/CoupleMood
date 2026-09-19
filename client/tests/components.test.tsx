@@ -17,7 +17,7 @@ describe('Frontend UI Components', () => {
   });
 
   describe('Header Component', () => {
-    it('renders branding, live sync status, and couple code', () => {
+    it('renders branding, live sync status, and couple code (default Thai)', () => {
       render(
         <Header
           coupleCode="LOVE-8241"
@@ -29,8 +29,34 @@ describe('Frontend UI Components', () => {
       );
 
       expect(screen.getByText('Mood Sender')).toBeTruthy();
-      expect(screen.getByText('Live sync')).toBeTruthy();
+      expect(screen.getByText('เชื่อมต่อสด')).toBeTruthy();
       expect(screen.getByText('LOVE-8241')).toBeTruthy();
+      expect(screen.getByRole('button', { name: /Toggle language/i })).toBeTruthy();
+    });
+
+    it('toggles language between Thai and English', () => {
+      render(
+        <I18nProvider>
+          <Header
+            coupleCode="LOVE-8241"
+            sseConnected={true}
+            user={{ nickname: 'Taylor', slot: 1 }}
+            partner={{ nickname: 'Alex' }}
+            onUnpair={vi.fn()}
+          />
+        </I18nProvider>
+      );
+
+      const toggleBtn = screen.getByRole('button', { name: /Toggle language/i });
+      expect(screen.getByText('เชื่อมต่อสด')).toBeTruthy();
+
+      // Toggle to English
+      fireEvent.click(toggleBtn);
+      expect(screen.getByText('Live sync')).toBeTruthy();
+
+      // Toggle back to Thai
+      fireEvent.click(toggleBtn);
+      expect(screen.getByText('เชื่อมต่อสด')).toBeTruthy();
     });
 
     it('opens settings dialog and confirms unpair', async () => {
@@ -45,14 +71,14 @@ describe('Frontend UI Components', () => {
         />
       );
 
-      const settingsBtn = screen.getByLabelText('Couple Settings');
+      const settingsBtn = screen.getByLabelText('ตั้งค่าคู่รัก');
       fireEvent.click(settingsBtn);
 
-      expect(screen.getByText('Couple Settings')).toBeTruthy();
+      expect(screen.getByText('ตั้งค่าคู่รัก')).toBeTruthy();
       expect(screen.getByText('Taylor')).toBeTruthy();
       expect(screen.getByText('Alex')).toBeTruthy();
 
-      const unpairBtn = screen.getByText('Unpair Couple');
+      const unpairBtn = screen.getByText('ยกเลิกการเชื่อมต่อคู่');
       fireEvent.click(unpairBtn);
 
       await waitFor(() => {
@@ -79,11 +105,11 @@ describe('Frontend UI Components', () => {
         />
       );
 
-      const copyBtn = screen.getByTitle('Click to copy Couple Code');
+      const copyBtn = screen.getByTitle('คลิกเพื่อคัดลอกรหัสคู่รัก');
       fireEvent.click(copyBtn);
 
       expect(execCommandMock).toHaveBeenCalledWith('copy');
-      expect(screen.getByText('Copied!')).toBeTruthy();
+      expect(screen.getByText('คัดลอกแล้ว!')).toBeTruthy();
 
       Object.defineProperty(navigator, 'clipboard', {
         value: originalClipboard,
@@ -93,7 +119,7 @@ describe('Frontend UI Components', () => {
   });
 
   describe('PairModal Component', () => {
-    it('generates random couple code and pairs user', async () => {
+    it('generates random couple code and pairs user in default Thai', async () => {
       const handleSuccess = vi.fn();
       const mockResponse = {
         user: { id: 'u1', nickname: 'Taylor', slot: 1 as const },
@@ -105,16 +131,16 @@ describe('Frontend UI Components', () => {
 
       render(<PairModal onPairSuccess={handleSuccess} />);
 
-      const randomBtn = screen.getByText('Generate Random');
+      const randomBtn = screen.getByText('สุ่มรหัส');
       fireEvent.click(randomBtn);
 
-      const codeInput = screen.getByLabelText('Couple Code') as HTMLInputElement;
+      const codeInput = screen.getByLabelText('รหัสคู่รัก') as HTMLInputElement;
       expect(codeInput.value).toMatch(/^LOVE-[A-Z0-9]{4}$/);
 
-      const nickInput = screen.getByLabelText('Your Nickname') as HTMLInputElement;
+      const nickInput = screen.getByLabelText('ชื่อเล่นของคุณ') as HTMLInputElement;
       fireEvent.change(nickInput, { target: { value: 'Taylor' } });
 
-      const submitBtn = screen.getByText('Enter Room');
+      const submitBtn = screen.getByText('เข้าสู่ห้อง');
       const form = submitBtn.closest('form')!;
       fireEvent.submit(form);
 
@@ -132,19 +158,34 @@ describe('Frontend UI Components', () => {
 
       render(<PairModal onPairSuccess={vi.fn()} />);
 
-      const codeInput = screen.getByLabelText('Couple Code');
-      const nickInput = screen.getByLabelText('Your Nickname');
+      const codeInput = screen.getByLabelText('รหัสคู่รัก');
+      const nickInput = screen.getByLabelText('ชื่อเล่นของคุณ');
 
       fireEvent.change(codeInput, { target: { value: 'LOVE-FULL' } });
       fireEvent.change(nickInput, { target: { value: 'Taylor' } });
 
-      const submitBtn = screen.getByText('Enter Room');
+      const submitBtn = screen.getByText('เข้าสู่ห้อง');
       const form = submitBtn.closest('form')!;
       fireEvent.submit(form);
 
       await waitFor(() => {
-        expect(screen.getByText(/Couple code is full/i)).toBeTruthy();
+        expect(screen.getByText(/รหัสคู่รักนี้มีผู้ใช้งานครบแล้ว/i)).toBeTruthy();
       });
+    });
+
+    it('supports English language switching in PairModal', () => {
+      render(
+        <I18nProvider>
+          <PairModal onPairSuccess={vi.fn()} />
+        </I18nProvider>
+      );
+      const langToggle = screen.getByRole('button', { name: /Toggle language/i });
+      fireEvent.click(langToggle);
+
+      expect(screen.getByText('Generate Random')).toBeTruthy();
+      expect(screen.getByLabelText('Couple Code')).toBeTruthy();
+      expect(screen.getByLabelText('Your Nickname')).toBeTruthy();
+      expect(screen.getByText('Enter Room')).toBeTruthy();
     });
   });
 
@@ -158,7 +199,7 @@ describe('Frontend UI Components', () => {
         />
       );
 
-      expect(screen.getByText('Waiting for Partner')).toBeTruthy();
+      expect(screen.getByText('กำลังรอแฟนของคุณ')).toBeTruthy();
       expect(screen.getByText('LOVE-8888')).toBeTruthy();
     });
 
@@ -170,28 +211,50 @@ describe('Frontend UI Components', () => {
         />
       );
 
-      expect(screen.getByText("Sam's Mood")).toBeTruthy();
-      expect(screen.getByText(/Waiting for Sam/i)).toBeTruthy();
+      expect(screen.getByText('ความรู้สึกของ Sam')).toBeTruthy();
+      expect(screen.getByText(/กำลังรอ Sam/i)).toBeTruthy();
     });
 
-    it('renders partner mood emoji, label, note, and relative timestamp', () => {
-      render(
+    it('renders partner mood emoji, label, note, and relative timestamp in Thai and English', () => {
+      const { rerender } = render(
         <PartnerCard
           partner={{ id: 'u2', nickname: 'Sam' }}
           partnerMood={{
             emoji: '🥰',
-            label: 'Loving',
-            note: 'Can not wait to see you!',
+            label: 'รักนะ',
+            note: 'คิดถึงจังเลย',
             colorTheme: 'rose',
             updated_at: new Date().toISOString(),
           }}
         />
       );
 
-      expect(screen.getByText("Sam's Current Mood")).toBeTruthy();
+      expect(screen.getByText('ความรู้สึกของ Sam ในตอนนี้')).toBeTruthy();
       expect(screen.getByText('🥰')).toBeTruthy();
+      expect(screen.getByText('รักนะ')).toBeTruthy();
+      expect(screen.getByText('"คิดถึงจังเลย"')).toBeTruthy();
+      expect(screen.getByText('เมื่อสักครู่')).toBeTruthy();
+
+      // Verify English localization with I18nProvider
+      rerender(
+        <I18nProvider initialLanguage="en">
+          <PartnerCard
+            partner={{ id: 'u2', nickname: 'Sam' }}
+            partnerMood={{
+              emoji: '🥰',
+              label: 'Loving',
+              note: 'Can not wait to see you!',
+              colorTheme: 'rose',
+              updated_at: new Date().toISOString(),
+            }}
+          />
+        </I18nProvider>
+      );
+
+      expect(screen.getByText("Sam's Current Mood")).toBeTruthy();
       expect(screen.getByText('Loving')).toBeTruthy();
       expect(screen.getByText('"Can not wait to see you!"')).toBeTruthy();
+      expect(screen.getByText('Just now')).toBeTruthy();
     });
   });
 
@@ -328,7 +391,7 @@ describe('Frontend UI Components', () => {
   });
 
   describe('PushPrompt Component', () => {
-    it('dismisses when Not now is clicked', () => {
+    it('dismisses when Not now is clicked (Thai default)', () => {
       // Mock Notification
       (globalThis as any).Notification = {
         permission: 'default',
@@ -338,16 +401,16 @@ describe('Frontend UI Components', () => {
 
       render(<PushPrompt onSubscribe={vi.fn()} />);
 
-      expect(screen.getByText('Never miss a mood update')).toBeTruthy();
+      expect(screen.getByText('ไม่พลาดทุกความรู้สึก')).toBeTruthy();
 
-      const notNowBtn = screen.getByText('Not now');
+      const notNowBtn = screen.getByText('ไว้ทีหลัง');
       fireEvent.click(notNowBtn);
 
-      expect(screen.queryByText('Never miss a mood update')).toBeNull();
+      expect(screen.queryByText('ไม่พลาดทุกความรู้สึก')).toBeNull();
       expect(sessionStorage.getItem('push_prompt_dismissed')).toBe('true');
     });
 
-    it('invokes onSubscribe when Enable Notifications is clicked', async () => {
+    it('invokes onSubscribe when Enable Notifications is clicked in Thai and English', async () => {
       (globalThis as any).Notification = {
         permission: 'default',
       };
@@ -355,13 +418,32 @@ describe('Frontend UI Components', () => {
       (globalThis as any).PushManager = {};
 
       const handleSubscribe = vi.fn().mockResolvedValue(undefined);
-      render(<PushPrompt onSubscribe={handleSubscribe} />);
+      const { unmount } = render(<PushPrompt onSubscribe={handleSubscribe} />);
 
-      const enableBtn = screen.getByRole('button', { name: /Enable Notifications/i });
+      const enableBtn = screen.getByRole('button', { name: /เปิดการแจ้งเตือน/i });
       fireEvent.click(enableBtn);
 
       await waitFor(() => {
         expect(handleSubscribe).toHaveBeenCalledTimes(1);
+      });
+
+      unmount();
+      sessionStorage.clear();
+
+      // Test English
+      const handleSubscribeEn = vi.fn().mockResolvedValue(undefined);
+      render(
+        <I18nProvider initialLanguage="en">
+          <PushPrompt onSubscribe={handleSubscribeEn} />
+        </I18nProvider>
+      );
+
+      expect(screen.getByText('Never miss a mood update')).toBeTruthy();
+      const enableBtnEn = screen.getByRole('button', { name: /Enable Notifications/i });
+      fireEvent.click(enableBtnEn);
+
+      await waitFor(() => {
+        expect(handleSubscribeEn).toHaveBeenCalledTimes(1);
       });
     });
   });

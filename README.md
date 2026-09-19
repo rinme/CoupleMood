@@ -7,7 +7,9 @@
 ## Highlights
 
 - **Private Couple Rooms**: Pair effortlessly using a simple 4–12 character shared code. Strict two-partner capacity prevents unauthorized access.
-- **Instant Mood Updates**: Choose expressive presets (Loving, Cozy, Sleepy, Excited, Missing you, Calm) or enter custom text and 100-character notes.
+- **Thai Default Localization & English Switcher**: Fully localized in Thai by default with intuitive relative timestamps ("เมื่อสักครู่", "5 นาทีที่แล้ว") and a tactile TH | EN header toggle.
+- **Customizable Mood Reactions**: Tailor your reaction grid (1–16 items) via the "Manage Reactions" modal with custom emoji, label, and palette themes, saved per user in SQLite.
+- **Updated Couple Presets**: Default presets prioritize intimate daily moments including "Missing you" (คิดถึง) and "Hungry" (หิว).
 - **Real-time Live Sync**: Server-Sent Events (SSE) push partner mood changes instantly without manual refreshing or aggressive battery drain.
 - **Offline PWA & Service Worker**: Fully functional offline shell with network-first API caching, offline fallback, and standalone home-screen experience.
 - **Web Push Notifications**: Background notifications alert your partner when you update your mood—even if the app is closed.
@@ -65,7 +67,7 @@ bun run dev
 
 ### Running the Full Test Suite
 
-Execute all 88 unit, integration, service worker, component, and end-to-end tests:
+Execute all 129 unit, integration, service worker, component, and end-to-end tests across 13 test suites:
 ```bash
 bun run test
 # or
@@ -83,16 +85,17 @@ CoupleMood/
 │   │   ├── manifest.json       # PWA manifest with standalone display & icons
 │   │   └── sw.js               # Service worker (caching, offline, push listener)
 │   ├── src/
-│   │   ├── components/         # Header, PairModal, PartnerCard, MyMoodCard, PushPrompt
+│   │   ├── components/         # Header, PairModal, PartnerCard, MyMoodCard, PushPrompt, ManagePresetsModal
+│   │   ├── i18n/               # Thai (th) & English (en) dictionaries, context, hook
 │   │   ├── api.ts              # Fetch client communicating with /api/*
 │   │   ├── sw-register.ts      # Service worker registration & push subscription helpers
-│   │   ├── presets.ts          # Default mood presets, color themes, and quick-picks
+│   │   ├── presets.ts          # Default presets, themes, and relative time formatter
 │   │   ├── App.tsx             # Main layout, SSE listener & state coordinator
 │   │   └── main.tsx            # React root mount
 │   └── vite.config.ts          # Vite configuration & Happy-DOM test environment
 ├── server/                     # Backend Express + SQLite
 │   ├── src/
-│   │   ├── routes/             # auth.ts, mood.ts, push.ts, stream.ts (SSE)
+│   │   ├── routes/             # auth.ts, mood.ts, presets.ts, push.ts, stream.ts (SSE)
 │   │   ├── middleware/         # auth.ts cookie verification
 │   │   ├── db.ts               # SQLite schema, queries, VAPID initialization
 │   │   ├── push.ts             # Web Push dispatcher with 410/404 auto-pruning
@@ -100,7 +103,8 @@ CoupleMood/
 │   │   ├── app.ts              # Express application factory
 │   │   └── index.ts            # Production server entrypoint & SPA static hosting
 ├── tests/
-│   └── e2e.test.ts             # Complete 9-step partner interaction E2E test suite
+│   ├── e2e.test.ts             # Complete 9-step partner interaction E2E test suite
+│   └── e2e-presets.test.ts     # E2E test for Thai defaults, custom presets, SSE, reset
 ├── package.json                # Root package configuration with Bun scripts
 ├── vitest.config.ts            # Vitest multi-project test runner configuration
 └── README.md
@@ -114,6 +118,7 @@ The database is stored in SQLite (defaulting to `data/mood.db` or `:memory:` dur
 - **`users`**: `id` (UUID), `couple_id` (FK -> `couples.id`), `nickname`, `slot` (1 or 2), `created_at`
 - **`sessions`**: `token` (64-char crypto hex), `user_id` (FK -> `users.id`), `expires_at` (30 days rolling)
 - **`moods`**: `user_id` (PK, FK -> `users.id`), `emoji`, `label`, `note` (<= 100 chars), `color_theme`, `updated_at`
+- **`user_presets`**: `id` (UUID), `user_id` (FK -> `users.id`), `emoji`, `label`, `color_theme`, `sort_order`, `created_at`
 - **`push_subscriptions`**: `id` (UUID), `user_id` (FK -> `users.id`), `endpoint` (UNIQUE), `p256dh`, `auth`, `created_at`
 - **`server_settings`**: `key` (PK), `value` (persists auto-generated VAPID keys)
 
@@ -139,6 +144,9 @@ The PWA Service Worker handles offline caching and background push:
 | `/api/mood` | GET | Returns user mood, partner mood, and partner nickname |
 | `/api/mood` | POST | Sets/updates mood, triggers partner SSE event and push notification |
 | `/api/mood` | DELETE | Clears mood, broadcasts `mood_cleared` event to partner |
+| `/api/presets` | GET | Returns customized or default presets for user (`?lang=th\|en`) |
+| `/api/presets` | PUT | Saves customized presets atomically (1–16 items) |
+| `/api/presets/reset` | DELETE | Resets user presets to defaults (`?lang=th\|en`) |
 | `/api/push/key` | GET | Returns server's public VAPID key |
 | `/api/push/subscribe` | POST | Registers browser Web Push subscription |
 | `/api/push/unsubscribe` | POST | Removes Web Push subscription |
@@ -150,6 +158,36 @@ The PWA Service Worker handles offline caching and background push:
 - If missing, standard NIST P-256 EC keys are automatically generated via `web-push.generateVAPIDKeys()` and persisted.
 - If you prefer custom keys, provide `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` in your environment variables.
 - When browser push subscriptions expire or are revoked, web push services respond with `410 Gone` or `404 Not Found`; the server automatically prunes these dead subscriptions from SQLite.
+
+---
+
+## Internationalization & Customizable Mood Presets
+
+### Thai Language by Default with English Switcher
+
+- **Default Language**: Thai (th) is the primary language across all views, pairing forms, modals, toasts, and relative timestamps.
+- **Tactile Language Toggle**: A clean, tactile TH | EN switcher in the Header and Settings modal allows instant switching between Thai and English.
+- **Persistence**: User language preference is saved in localStorage under `couple_mood_lang` and automatically restored on subsequent visits.
+- **Localized Timestamps**: Relative times adapt dynamically based on the active language:
+  - Thai: "เมื่อสักครู่", "5 นาทีที่แล้ว", "2 ชม. ที่แล้ว", "เมื่อวาน", "3 วันที่แล้ว"
+  - English: "Just now", "5m ago", "2h ago", "Yesterday", "3d ago"
+
+### Customizable Mood Presets
+
+- **Default Couple Presets**: Prioritize intimate everyday check-ins:
+  1. Missing you (คิดถึง) - Rose theme
+  2. Hungry (หิว) - Amber theme
+  3. Loving (รักนะ) - Rose theme
+  4. Sleepy (ง่วง) - Purple theme
+  5. Busy (ยุ่งมาก) - Indigo theme
+  6. Cozy (ชิลๆ) - Amber theme
+  7. Sick (ไม่สบาย) - Teal theme
+- **Manage Reactions Modal**:
+  - Open by clicking "Manage" (จัดการ) in the "My Mood" card header.
+  - Add new reactions with custom emoji, text label (up to 30 characters), and 6 color themes (Rose, Amber, Indigo, Purple, Emerald, Teal).
+  - Edit or delete reactions with strict validation enforcing 1 to 16 reactions.
+  - Reset to original defaults anytime via the "Reset to Defaults" button.
+  - Custom presets are persisted per user in the SQLite `user_presets` table and sync seamlessly across devices.
 
 ---
 
@@ -177,13 +215,13 @@ Mood Sender is optimized to run as an installed standalone application on mobile
 
 ## Testing Verification
 
-The project includes an exhaustive automated test suite covering all layers:
+The project includes an exhaustive automated test suite covering all layers (129 tests across 13 test suites):
 
-- **Database Unit Tests** (`server/tests/db.test.ts`): Tables, constraints, VAPID generation, session expiry.
+- **Database Unit Tests** (`server/tests/db.test.ts`): Tables, constraints, user presets table, VAPID generation, session expiry.
 - **Service Worker Tests** (`client/tests/sw.test.ts`, `sw-register.test.ts`): Caching policies, push events, client focus.
-- **API & SSE Tests** (`server/tests/api.test.ts`): All routes, cookie auth, SSE stream, push subscription pruning.
-- **Client Components & App** (`client/tests/components.test.tsx`, `app.test.tsx`): React components, draft note preservation, SSE listeners.
-- **End-to-End Test Suite** (`tests/e2e.test.ts`): Full 9-step partner interaction lifecycle simulating pairing, live mood updates, timestamp verification, clearing, 409 conflict rejection, push simulation, and clean unpairing.
+- **API & Presets Tests** (`server/tests/api.test.ts`, `server/tests/presets.test.ts`): All routes, cookie auth, custom presets validation, reset, SSE stream, push subscription pruning.
+- **Client Components & App** (`client/tests/components.test.tsx`, `app.test.tsx`, `manage-presets.test.tsx`, `i18n.test.ts`): React components, Thai/English dictionary parity, language toggle, presets modal, draft note preservation, SSE listeners.
+- **End-to-End Test Suites** (`tests/e2e.test.ts`, `tests/e2e-presets.test.ts`): Full partner interaction lifecycle, live SSE broadcasts, push notifications, default Thai presets ("คิดถึง" and "หิว"), custom preset addition, and unpairing.
 
 Run tests at any time with:
 ```bash
