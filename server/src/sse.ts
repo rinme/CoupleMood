@@ -1,21 +1,28 @@
 import type { Response } from 'express';
 
 const connections = new Map<string, Set<Response>>();
+const tokenConnections = new Map<string, Set<Response>>();
 const pingIntervals = new Map<Response, NodeJS.Timeout>();
 
 const PING_INTERVAL_MS = 25000;
 
 /**
- * Registers an active SSE client response for a given user.
+ * Registers an active SSE client response for a given user and optional session token.
  * Starts a 25s ping keepalive and returns a cleanup function.
  */
-export function addConnection(userId: string, res: Response): () => void {
+export function addConnection(userId: string, res: Response, sessionToken?: string): () => void {
   if (!connections.has(userId)) {
     connections.set(userId, new Set());
   }
-
   const userConnections = connections.get(userId)!;
   userConnections.add(res);
+
+  if (sessionToken) {
+    if (!tokenConnections.has(sessionToken)) {
+      tokenConnections.set(sessionToken, new Set());
+    }
+    tokenConnections.get(sessionToken)!.add(res);
+  }
 
   // Periodic heartbeat every 25 seconds
   const interval = setInterval(() => {
@@ -44,6 +51,16 @@ export function addConnection(userId: string, res: Response): () => void {
       currentConns.delete(res);
       if (currentConns.size === 0) {
         connections.delete(userId);
+      }
+    }
+
+    if (sessionToken) {
+      const currentTokenConns = tokenConnections.get(sessionToken);
+      if (currentTokenConns) {
+        currentTokenConns.delete(res);
+        if (currentTokenConns.size === 0) {
+          tokenConnections.delete(sessionToken);
+        }
       }
     }
   };
@@ -90,19 +107,79 @@ export function notifyUser(userId: string, eventData: SseEvent): void {
 }
 
 /**
+ * Checks if a specific session token is currently connected.
+ */
+export function isTokenOnline(token: string): boolean {
+  return (tokenConnections.get(token)?.size ?? 0) > 0;
+}
+
+/**
+ * Checks if a specific user has any active connections.
+ */
+export function isUserOnline(userId: string): boolean {
+  return (connections.get(userId)?.size ?? 0) > 0;
+}
+
+/**
+ * Closes all active connections associated with a session token and notifies them of revocation.
+ */
+export function closeSessionConnections(token: string): void {
+  const clients = tokenConnections.get(token);
+  if (!clients) return;
+
+  const revocationPayload = `event: session_revoked\ndata: ${JSON.stringify({ reason: 'revoked' })}\n\n`;
+  for (const client of Array.from(clients)) {
+    try {
+      if (!client.destroyed && !client.writableEnded) {
+        client.write(revocationPayload);
+        client.end();
+      }
+    } catch {
+      // Ignore write errors
+    }
+  }
+  tokenConnections.delete(token);
+}
+
+/**
+ * Closes all active connections associated with a specific user.
+ */
+export function closeUserConnections(userId: string): void {
+  const clients = connections.get(userId);
+  if (!clients) return;
+
+  const revocationPayload = `event: session_revoked\ndata: ${JSON.stringify({ reason: 'revoked' })}\n\n`;
+  for (const client of Array.from(clients)) {
+    try {
+      if (!client.destroyed && !client.writableEnded) {
+        client.write(revocationPayload);
+        client.end();
+      }
+    } catch {
+      // Ignore write errors
+    }
+  }
+  connections.delete(userId);
+}
+
+/**
  * Closes all active SSE connections and clears keepalive timers.
  */
 export function closeAllConnections(): void {
   for (const [res, timer] of pingIntervals.entries()) {
     clearInterval(timer);
     try {
-      res.end();
+      if (!res.destroyed && !res.writableEnded) {
+        res.write(`event: session_revoked\ndata: ${JSON.stringify({ reason: 'all_revoked' })}\n\n`);
+        res.end();
+      }
     } catch {
       // Ignore
     }
   }
   pingIntervals.clear();
   connections.clear();
+  tokenConnections.clear();
 }
 
 /**
@@ -118,3 +195,4 @@ export function getConnectionCount(userId?: string): number {
   }
   return total;
 }
+

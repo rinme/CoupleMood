@@ -22,7 +22,8 @@ authRouter.post('/pair', (req, res) => {
   }
 
   try {
-    const result = pairUser(code, nickname);
+    const userAgent = req.headers['user-agent'];
+    const result = pairUser(code, nickname, userAgent);
 
     // 30 days expiration for session cookie
     const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;

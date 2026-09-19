@@ -134,9 +134,51 @@ export interface TranslationSchema {
     moodUpdated: string;
     moodCleared: string;
     defaultPartnerName: string;
+    sessionRevoked: string;
   };
   footer: {
     craftedWith: string;
     forCouples: string;
   };
+  admin: {
+    pageTitle: string;
+    pageSubtitle: string;
+    loginTitle: string;
+    loginSubtitle: string;
+    passwordLabel: string;
+    passwordPlaceholder: string;
+    loginButton: string;
+    loggingIn: string;
+    logoutButton: string;
+    backToApp: string;
+    statsCouples: string;
+    statsUsers: string;
+    statsSessions: string;
+    statsLiveConnections: string;
+    sessionsTitle: string;
+    sessionsDesc: string;
+    searchPlaceholder: string;
+    refresh: string;
+    onlineBadge: string;
+    offlineBadge: string;
+    slot1Badge: string;
+    slot2Badge: string;
+    createdPrefix: string;
+    lastActivePrefix: string;
+    revokeSessionButton: string;
+    revokeCoupleButton: string;
+    revokeAllButton: string;
+    revokeSessionConfirm: string;
+    revokeCoupleConfirm: string;
+    revokeAllConfirm: string;
+    revoking: string;
+    noSessionsFound: string;
+    errorInvalidPassword: string;
+    errorLockout: string;
+    attemptsRemaining: string;
+    lockoutWait: string;
+    sessionRevokedToast: string;
+    allRevokedToast: string;
+  };
 }
+

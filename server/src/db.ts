@@ -15,8 +15,19 @@ import type {
   PairResult,
   SessionResult,
   UserPreset,
-  DeviceLinkOtp
+  DeviceLinkOtp,
+  AdminSessionDetail,
+  AdminStats
 } from './types.js';
+import { parseUserAgent } from './device.js';
+import {
+  isTokenOnline,
+  closeSessionConnections,
+  closeUserConnections,
+  closeAllConnections,
+  getConnectionCount
+} from './sse.js';
+
 
 
 let dbInstance: Database | null = null;
@@ -118,9 +129,24 @@ function createSchema(db: Database): void {
     CREATE TABLE IF NOT EXISTS sessions (
       token TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
+      user_agent TEXT,
+      device_info TEXT,
+      last_active_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       expires_at DATETIME NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS admin_sessions (
+      token TEXT PRIMARY KEY,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      expires_at DATETIME NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS admin_login_attempts (
+      ip TEXT PRIMARY KEY,
+      failed_attempts INTEGER NOT NULL DEFAULT 0,
+      locked_until DATETIME
     );
 
     CREATE TABLE IF NOT EXISTS moods (
@@ -172,6 +198,23 @@ function createSchema(db: Database): void {
 
     CREATE INDEX IF NOT EXISTS idx_device_link_otps_user ON device_link_otps(user_id);
   `);
+
+  // Safe migration for existing databases: ensure new session columns exist
+  try {
+    const pragma = db.prepare("PRAGMA table_info(sessions)").all() as Array<{ name: string }>;
+    const cols = new Set(pragma.map(c => c.name));
+    if (!cols.has('user_agent')) {
+      db.exec('ALTER TABLE sessions ADD COLUMN user_agent TEXT');
+    }
+    if (!cols.has('device_info')) {
+      db.exec('ALTER TABLE sessions ADD COLUMN device_info TEXT');
+    }
+    if (!cols.has('last_active_at')) {
+      db.exec('ALTER TABLE sessions ADD COLUMN last_active_at DATETIME DEFAULT CURRENT_TIMESTAMP');
+    }
+  } catch {
+    // Ignore migration error if table doesn't exist yet
+  }
 }
 
 /**
@@ -225,7 +268,7 @@ export function getVapidKeys(): VapidKeys {
  * - Slot 2 if 1 user already exists
  * - Throws 'Couple code is full' (with 409 status) if 2 users already exist
  */
-export function pairUser(code: string, nickname: string): PairResult {
+export function pairUser(code: string, nickname: string, userAgent?: string): PairResult {
   const normalizedCode = code?.trim().toUpperCase();
   const trimmedNickname = nickname?.trim();
 
@@ -298,10 +341,15 @@ export function pairUser(code: string, nickname: string): PairResult {
     // 5. Generate 32-byte cryptographic session token (64 hex characters)
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const deviceInfo = parseUserAgent(userAgent);
 
-    db.prepare('INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)').run(
+    db.prepare(
+      'INSERT INTO sessions (token, user_id, user_agent, device_info, last_active_at, expires_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)'
+    ).run(
       token,
       userId,
+      userAgent ?? null,
+      deviceInfo,
       expiresAt
     );
 
@@ -340,6 +388,13 @@ export function getSession(token: string): SessionResult | null {
   if (Number.isNaN(expiresAt) || expiresAt <= Date.now()) {
     db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
     return null;
+  }
+
+  // Touch last_active_at
+  try {
+    db.prepare('UPDATE sessions SET last_active_at = CURRENT_TIMESTAMP WHERE token = ?').run(token);
+  } catch {
+    // Ignore error
   }
 
   // Fetch user
@@ -626,7 +681,7 @@ export function createDeviceLinkOtp(userId: string): { code: string; expiresAt: 
  * - 410: Code has expired
  * - 429: Too many failed attempts
  */
-export function verifyDeviceLinkOtp(code: string): PairResult {
+export function verifyDeviceLinkOtp(code: string, userAgent?: string): PairResult {
   const normalizedCode = code?.trim();
   if (!normalizedCode) {
     const err = new Error('Invalid or expired code');
@@ -698,10 +753,15 @@ export function verifyDeviceLinkOtp(code: string): PairResult {
   const redeemTx = db.transaction((): PairResult => {
     const token = crypto.randomBytes(32).toString('hex');
     const sessionExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const deviceInfo = parseUserAgent(userAgent);
 
-    db.prepare('INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)').run(
+    db.prepare(
+      'INSERT INTO sessions (token, user_id, user_agent, device_info, last_active_at, expires_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)'
+    ).run(
       token,
       user.id,
+      userAgent ?? null,
+      deviceInfo,
       sessionExpiresAt
     );
 
@@ -737,5 +797,255 @@ export function recordOtpFailure(code: string): void {
 export function logoutSession(token: string): void {
   deleteSession(token);
 }
+
+/* ==========================================================================
+   Admin Subsystem: Authentication, Brute-Force Lockout, Session Management
+   ========================================================================== */
+
+const MAX_ADMIN_FAILED_ATTEMPTS = 5;
+const ADMIN_LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
+
+/**
+ * Checks whether an IP is currently locked out from admin login attempts.
+ */
+export function checkAdminLockout(ip: string): { locked: boolean; waitSeconds?: number } {
+  if (!ip) return { locked: false };
+  const db = dbInstance ?? getDb();
+  const row = db
+    .prepare('SELECT failed_attempts, locked_until FROM admin_login_attempts WHERE ip = ?')
+    .get(ip) as { failed_attempts: number; locked_until: string | null } | undefined;
+
+  if (!row || !row.locked_until) {
+    return { locked: false };
+  }
+
+  const lockedTime = new Date(row.locked_until).getTime();
+  const now = Date.now();
+  if (lockedTime > now) {
+    return {
+      locked: true,
+      waitSeconds: Math.ceil((lockedTime - now) / 1000)
+    };
+  }
+
+  // Lockout expired: remove record
+  db.prepare('DELETE FROM admin_login_attempts WHERE ip = ?').run(ip);
+  return { locked: false };
+}
+
+/**
+ * Records a failed admin login attempt for an IP.
+ * Triggers a 15-minute lockout when 5 failures are reached.
+ */
+export function recordAdminFailedAttempt(ip: string): { locked: boolean; waitSeconds?: number; attemptsLeft: number } {
+  if (!ip) return { locked: false, attemptsLeft: MAX_ADMIN_FAILED_ATTEMPTS };
+  const db = dbInstance ?? getDb();
+  const row = db
+    .prepare('SELECT failed_attempts FROM admin_login_attempts WHERE ip = ?')
+    .get(ip) as { failed_attempts: number } | undefined;
+
+  const currentAttempts = (row?.failed_attempts ?? 0) + 1;
+
+  if (currentAttempts >= MAX_ADMIN_FAILED_ATTEMPTS) {
+    const lockedUntil = new Date(Date.now() + ADMIN_LOCKOUT_MS).toISOString();
+    db.prepare(`
+      INSERT INTO admin_login_attempts (ip, failed_attempts, locked_until)
+      VALUES (?, ?, ?)
+      ON CONFLICT(ip) DO UPDATE SET failed_attempts = excluded.failed_attempts, locked_until = excluded.locked_until
+    `).run(ip, currentAttempts, lockedUntil);
+
+    return {
+      locked: true,
+      waitSeconds: Math.ceil(ADMIN_LOCKOUT_MS / 1000),
+      attemptsLeft: 0
+    };
+  }
+
+  db.prepare(`
+    INSERT INTO admin_login_attempts (ip, failed_attempts, locked_until)
+    VALUES (?, ?, NULL)
+    ON CONFLICT(ip) DO UPDATE SET failed_attempts = excluded.failed_attempts, locked_until = NULL
+  `).run(ip, currentAttempts);
+
+  return {
+    locked: false,
+    attemptsLeft: MAX_ADMIN_FAILED_ATTEMPTS - currentAttempts
+  };
+}
+
+/**
+ * Resets failed admin login attempts for an IP upon successful login.
+ */
+export function resetAdminFailedAttempts(ip: string): void {
+  if (!ip) return;
+  const db = dbInstance ?? getDb();
+  db.prepare('DELETE FROM admin_login_attempts WHERE ip = ?').run(ip);
+}
+
+/**
+ * Verifies admin password using timing-safe comparison against ADMIN_PASSWORD env var.
+ * Falls back to 'admin123' if not explicitly configured.
+ */
+export function verifyAdminPassword(password: string): boolean {
+  if (typeof password !== 'string') return false;
+  const expectedPassword = process.env.ADMIN_PASSWORD || 'admin123';
+
+  const bufA = Buffer.from(password);
+  const bufB = Buffer.from(expectedPassword);
+  if (bufA.length !== bufB.length) {
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+/**
+ * Creates an admin session token valid for 24 hours.
+ */
+export function createAdminSession(): string {
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+  const db = dbInstance ?? getDb();
+  db.prepare('INSERT INTO admin_sessions (token, expires_at) VALUES (?, ?)').run(token, expiresAt);
+  return token;
+}
+
+/**
+ * Validates an admin session token.
+ */
+export function verifyAdminSession(token: string): boolean {
+  if (!token) return false;
+  const db = dbInstance ?? getDb();
+  const session = db
+    .prepare('SELECT token, expires_at FROM admin_sessions WHERE token = ?')
+    .get(token) as { token: string; expires_at: string } | undefined;
+
+  if (!session) return false;
+
+  const expiresTime = new Date(session.expires_at).getTime();
+  if (Number.isNaN(expiresTime) || expiresTime <= Date.now()) {
+    db.prepare('DELETE FROM admin_sessions WHERE token = ?').run(token);
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Deletes an admin session token (logout).
+ */
+export function deleteAdminSession(token: string): void {
+  if (!token) return;
+  const db = dbInstance ?? getDb();
+  db.prepare('DELETE FROM admin_sessions WHERE token = ?').run(token);
+}
+
+/**
+ * Retrieves all client sessions with joined user and couple details.
+ */
+export function getAllSessionsWithDetails(): AdminSessionDetail[] {
+  const db = dbInstance ?? getDb();
+  const rows = db.prepare(`
+    SELECT 
+      s.token,
+      s.user_id,
+      s.user_agent,
+      s.device_info,
+      s.last_active_at,
+      s.created_at,
+      u.nickname AS user_nickname,
+      u.slot AS user_slot,
+      c.id AS couple_id,
+      c.code AS couple_code
+    FROM sessions s
+    JOIN users u ON s.user_id = u.id
+    JOIN couples c ON u.couple_id = c.id
+    ORDER BY s.last_active_at DESC, s.created_at DESC
+  `).all() as any[];
+
+  return rows.map((r) => {
+    const token = r.token;
+    const token_preview = token.length > 12 ? `${token.slice(0, 6)}...${token.slice(-4)}` : token;
+    return {
+      token: r.token,
+      token_preview,
+      user_id: r.user_id,
+      user_nickname: r.user_nickname,
+      user_slot: r.user_slot,
+      couple_id: r.couple_id,
+      couple_code: r.couple_code,
+      device_info: r.device_info || parseUserAgent(r.user_agent),
+      user_agent: r.user_agent ?? null,
+      created_at: r.created_at,
+      last_active_at: r.last_active_at || r.created_at,
+      is_online: isTokenOnline(r.token)
+    };
+  });
+}
+
+/**
+ * Computes high-level overview metrics for the admin dashboard.
+ */
+export function getAdminStats(): AdminStats {
+  const db = dbInstance ?? getDb();
+  const totalCouples = (db.prepare('SELECT COUNT(*) as count FROM couples').get() as { count: number }).count;
+  const totalUsers = (db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number }).count;
+  const totalSessions = (db.prepare('SELECT COUNT(*) as count FROM sessions').get() as { count: number }).count;
+  const liveConnections = getConnectionCount();
+
+  return {
+    total_couples: totalCouples,
+    total_users: totalUsers,
+    total_sessions: totalSessions,
+    live_connections: liveConnections
+  };
+}
+
+/**
+ * Revokes a single session by token and kicks any active live SSE connection.
+ */
+export function revokeSession(token: string): boolean {
+  if (!token) return false;
+  closeSessionConnections(token);
+  const db = dbInstance ?? getDb();
+  const info = db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+  return info.changes > 0;
+}
+
+/**
+ * Revokes all sessions for a specific user and terminates their live SSE streams.
+ */
+export function revokeSessionsByUser(userId: string): number {
+  if (!userId) return 0;
+  closeUserConnections(userId);
+  const db = dbInstance ?? getDb();
+  const info = db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
+  return info.changes;
+}
+
+/**
+ * Revokes all sessions for all users of a couple and terminates their live SSE streams.
+ */
+export function revokeSessionsByCouple(coupleId: string): number {
+  if (!coupleId) return 0;
+  const db = dbInstance ?? getDb();
+  const users = db.prepare('SELECT id FROM users WHERE couple_id = ?').all(coupleId) as Array<{ id: string }>;
+  for (const u of users) {
+    closeUserConnections(u.id);
+  }
+  const info = db.prepare('DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE couple_id = ?)').run(coupleId);
+  return info.changes;
+}
+
+/**
+ * Revokes ALL sessions system-wide and disconnects all clients.
+ */
+export function revokeAllSessions(): number {
+  closeAllConnections();
+  const db = dbInstance ?? getDb();
+  const info = db.prepare('DELETE FROM sessions').run();
+  return info.changes;
+}
+
 
 

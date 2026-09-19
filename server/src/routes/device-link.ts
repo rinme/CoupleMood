@@ -39,7 +39,8 @@ deviceLinkRouter.post('/verify', (req, res) => {
   }
 
   try {
-    const result = verifyDeviceLinkOtp(rawCode);
+    const userAgent = req.headers['user-agent'];
+    const result = verifyDeviceLinkOtp(rawCode, userAgent);
 
     // 30 days expiration for session cookie
     const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;

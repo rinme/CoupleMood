@@ -11,3 +11,5 @@ services:
         value: production
       - key: DB_PATH
         value: /app/data/mood.db
+      - key: ADMIN_PASSWORD
+        sync: false

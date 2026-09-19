@@ -6,6 +6,8 @@ import {
   SetMoodRequest,
   Mood,
   PresetMood,
+  AdminSessionDetail,
+  AdminStats,
 } from './types.js';
 
 export class ApiError extends Error {
@@ -199,6 +201,57 @@ export const api = {
     },
   },
 
+  admin: {
+    async login(password: string): Promise<{ success: boolean }> {
+      return fetchApi<{ success: boolean }>('/api/admin/login', {
+        method: 'POST',
+        body: JSON.stringify({ password }),
+      });
+    },
+
+    async logout(): Promise<{ success: boolean }> {
+      return fetchApi<{ success: boolean }>('/api/admin/logout', {
+        method: 'POST',
+      });
+    },
+
+    async check(): Promise<{ authenticated: boolean }> {
+      return fetchApi<{ authenticated: boolean }>('/api/admin/check', {
+        method: 'GET',
+      });
+    },
+
+    async getStats(): Promise<AdminStats> {
+      return fetchApi<AdminStats>('/api/admin/stats', {
+        method: 'GET',
+      });
+    },
+
+    async getSessions(): Promise<{ sessions: AdminSessionDetail[] }> {
+      return fetchApi<{ sessions: AdminSessionDetail[] }>('/api/admin/sessions', {
+        method: 'GET',
+      });
+    },
+
+    async revokeSession(token: string): Promise<{ success: boolean }> {
+      return fetchApi<{ success: boolean }>(`/api/admin/sessions/${encodeURIComponent(token)}`, {
+        method: 'DELETE',
+      });
+    },
+
+    async revokeCoupleSessions(coupleId: string): Promise<{ success: boolean; revokedCount: number }> {
+      return fetchApi<{ success: boolean; revokedCount: number }>(`/api/admin/couples/${encodeURIComponent(coupleId)}/sessions`, {
+        method: 'DELETE',
+      });
+    },
+
+    async revokeAllSessions(): Promise<{ success: boolean; revokedCount: number }> {
+      return fetchApi<{ success: boolean; revokedCount: number }>('/api/admin/sessions', {
+        method: 'DELETE',
+      });
+    },
+  },
+
   async getPresets(lang?: string): Promise<PresetMood[] & { presets: PresetMood[] }> {
     return api.presets.getPresets(lang);
   },
@@ -211,3 +264,4 @@ export const api = {
     return api.presets.resetPresets(lang);
   },
 };
+

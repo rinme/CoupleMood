@@ -7,6 +7,7 @@ import { PairModal } from './components/PairModal.js';
 import { PartnerCard } from './components/PartnerCard.js';
 import { MyMoodCard } from './components/MyMoodCard.js';
 import { PushPrompt } from './components/PushPrompt.js';
+import { AdminPage } from './components/AdminPage.js';
 import { Heart } from 'lucide-react';
 import { I18nProvider, useTranslation, useHasI18nProvider } from './i18n/index.js';
 
@@ -174,6 +175,16 @@ export const AppContent: React.FC = () => {
               message: `${partnerName} ${t.toasts.moodCleared}`,
             });
           }
+        } else if (payload.type === 'session_revoked') {
+          setSession(null);
+          setMyMood(null);
+          setPartnerMood(null);
+          setPartner(null);
+          setSseConnected(false);
+          showToast({
+            message: t.toasts.sessionRevoked,
+            emoji: '⚠️',
+          });
         }
       } catch (err) {
         console.error('Failed to parse SSE payload:', err);
@@ -185,6 +196,7 @@ export const AppContent: React.FC = () => {
       if (es) {
         es.removeEventListener('mood_update', handleSseMessage as EventListener);
         es.removeEventListener('mood_cleared', handleSseMessage as EventListener);
+        es.removeEventListener('session_revoked', handleSseMessage as EventListener);
         es.close();
       }
 
@@ -200,6 +212,7 @@ export const AppContent: React.FC = () => {
         if (es) {
           es.removeEventListener('mood_update', handleSseMessage as EventListener);
           es.removeEventListener('mood_cleared', handleSseMessage as EventListener);
+          es.removeEventListener('session_revoked', handleSseMessage as EventListener);
           es.close();
           es = null;
         }
@@ -214,6 +227,7 @@ export const AppContent: React.FC = () => {
       // Register named SSE event listeners per W3C specification, plus onmessage fallback
       es.addEventListener('mood_update', handleSseMessage as EventListener);
       es.addEventListener('mood_cleared', handleSseMessage as EventListener);
+      es.addEventListener('session_revoked', handleSseMessage as EventListener);
       es.onmessage = handleSseMessage;
     }
 
@@ -224,6 +238,7 @@ export const AppContent: React.FC = () => {
       if (es) {
         es.removeEventListener('mood_update', handleSseMessage as EventListener);
         es.removeEventListener('mood_cleared', handleSseMessage as EventListener);
+        es.removeEventListener('session_revoked', handleSseMessage as EventListener);
         es.close();
         es = null;
       }
@@ -388,13 +403,28 @@ export const AppContent: React.FC = () => {
 };
 
 export const App: React.FC = () => {
+  const [currentPath, setCurrentPath] = useState(() =>
+    typeof window !== 'undefined' ? window.location.pathname : '/'
+  );
+
+  useEffect(() => {
+    const onPopState = () => {
+      setCurrentPath(window.location.pathname);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  const isAdmin = currentPath === '/admin' || currentPath.startsWith('/admin/');
+  const content = isAdmin ? <AdminPage /> : <AppContent />;
+
   const hasProvider = useHasI18nProvider();
   if (hasProvider) {
-    return <AppContent />;
+    return content;
   }
   return (
     <I18nProvider>
-      <AppContent />
+      {content}
     </I18nProvider>
   );
 };

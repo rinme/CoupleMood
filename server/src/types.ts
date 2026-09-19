@@ -15,9 +15,41 @@ export interface User {
 export interface Session {
   token: string;
   user_id: string;
+  user_agent?: string | null;
+  device_info?: string | null;
+  last_active_at?: string;
   created_at?: string;
   expires_at: string;
 }
+
+export interface AdminSession {
+  token: string;
+  created_at?: string;
+  expires_at: string;
+}
+
+export interface AdminSessionDetail {
+  token: string;
+  token_preview: string;
+  user_id: string;
+  user_nickname: string;
+  user_slot: 1 | 2;
+  couple_id: string;
+  couple_code: string;
+  device_info: string;
+  user_agent?: string | null;
+  created_at: string;
+  last_active_at: string;
+  is_online: boolean;
+}
+
+export interface AdminStats {
+  total_couples: number;
+  total_users: number;
+  total_sessions: number;
+  live_connections: number;
+}
+
 
 export interface Mood {
   user_id: string;

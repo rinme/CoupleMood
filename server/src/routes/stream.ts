@@ -21,7 +21,7 @@ streamRouter.get('/', requireAuth, (req, res) => {
   // Send initial connection acknowledgment comment
   res.write(': connected\n\n');
 
-  const cleanup = addConnection(req.user.id, res);
+  const cleanup = addConnection(req.user.id, res, req.sessionToken);
 
   req.on('close', cleanup);
   res.on('close', cleanup);

@@ -9,6 +9,7 @@ import { moodRouter } from './routes/mood.js';
 import { pushRouter } from './routes/push.js';
 import { streamRouter } from './routes/stream.js';
 import { presetsRouter } from './routes/presets.js';
+import { adminRouter } from './routes/admin.js';
 
 /**
  * Creates and configures the Express application.
@@ -35,6 +36,7 @@ export function createApp(db?: Database): Express {
   app.use('/api/presets', presetsRouter);
   app.use('/api/push', pushRouter);
   app.use('/api/stream', streamRouter);
+  app.use('/api/admin', adminRouter);
 
   return app;
 }
