@@ -6,13 +6,14 @@
 
 ## Highlights
 
-- **Private Couple Rooms**: Pair effortlessly using a simple 4–12 character shared code. Strict two-partner capacity prevents unauthorized access.
-- **Thai Default Localization & English Switcher**: Fully localized in Thai by default with intuitive relative timestamps ("เมื่อสักครู่", "5 นาทีที่แล้ว") and a tactile TH | EN header toggle.
-- **Customizable Mood Reactions**: Tailor your reaction grid (1–16 items) via the "Manage Reactions" modal with custom emoji, label, and palette themes, saved per user in SQLite.
-- **Updated Couple Presets**: Default presets prioritize intimate daily moments including "Missing you" (คิดถึง) and "Hungry" (หิว).
-- **Real-time Live Sync**: Server-Sent Events (SSE) push partner mood changes instantly without manual refreshing or aggressive battery drain.
+- **Private Couple Rooms**: Pair effortlessly using a simple 4-12 character shared code. Strict two-partner capacity prevents unauthorized access.
+- **Multi-Device Account Linking**: Connect your account to laptops, tablets, and secondary phones via 6-digit OTP or QR code scan. Each device maintains an independent session with real-time sync.
+- **Thai Default Localization & English Switcher**: Fully localized in Thai by default with intuitive relative timestamps and a tactile TH | EN header toggle.
+- **Customizable Mood Reactions**: Tailor your reaction grid (1-16 items) via the "Manage Reactions" modal with custom emoji, label, and palette themes, saved per user in SQLite.
+- **Updated Couple Presets**: Default presets prioritize intimate daily moments including "Missing you" and "Hungry".
+- **Real-time Live Sync**: Server-Sent Events (SSE) push partner mood changes instantly across all connected devices without manual refreshing or aggressive battery drain.
 - **Offline PWA & Service Worker**: Fully functional offline shell with network-first API caching, offline fallback, and standalone home-screen experience.
-- **Web Push Notifications**: Background notifications alert your partner when you update your mood—even if the app is closed.
+- **Web Push Notifications**: Background notifications alert your partner when you update your mood--even if the app is closed.
 - **Zero-Config VAPID**: VAPID keys for Web Push are automatically generated and securely persisted in SQLite on first boot.
 - **Tactile "Cozy Warm" Aesthetic**: Styled with a warm paper backdrop (`#FAF7F2`), deep espresso typography (`#2D2825`), and dynamic ambient color tints tailored to your partner's current mood.
 
@@ -67,7 +68,7 @@ bun run dev
 
 ### Running the Full Test Suite
 
-Execute all 136 unit, integration, service worker, component, edge proxy, and end-to-end tests across 14 test suites:
+Execute all 181 unit, integration, service worker, component, edge proxy, and end-to-end tests across 18 test suites:
 ```bash
 bun run test
 # or
@@ -95,7 +96,7 @@ CoupleMood/
 │   └── vite.config.ts          # Vite configuration & Happy-DOM test environment
 ├── server/                     # Backend Express + SQLite
 │   ├── src/
-│   │   ├── routes/             # auth.ts, mood.ts, presets.ts, push.ts, stream.ts (SSE)
+│   │   ├── routes/             # auth.ts, device-link.ts, mood.ts, presets.ts, push.ts, stream.ts (SSE)
 │   │   ├── middleware/         # auth.ts cookie verification
 │   │   ├── db.ts               # SQLite schema, queries, VAPID initialization
 │   │   ├── push.ts             # Web Push dispatcher with 410/404 auto-pruning
@@ -104,7 +105,8 @@ CoupleMood/
 │   │   └── index.ts            # Production server entrypoint & SPA static hosting
 ├── tests/
 │   ├── e2e.test.ts             # Complete 9-step partner interaction E2E test suite
-│   └── e2e-presets.test.ts     # E2E test for Thai defaults, custom presets, SSE, reset
+│   ├── e2e-presets.test.ts     # E2E test for Thai defaults, custom presets, SSE, reset
+│   └── e2e-multi-device.test.ts # E2E test for multi-device OTP linking, logout, and SSE sync
 ├── package.json                # Root package configuration with Bun scripts
 ├── vitest.config.ts            # Vitest multi-project test runner configuration
 └── README.md
@@ -119,6 +121,7 @@ The database is stored in SQLite (defaulting to `data/mood.db` or `:memory:` dur
 - **`sessions`**: `token` (64-char crypto hex), `user_id` (FK -> `users.id`), `expires_at` (30 days rolling)
 - **`moods`**: `user_id` (PK, FK -> `users.id`), `emoji`, `label`, `note` (<= 100 chars), `color_theme`, `updated_at`
 - **`user_presets`**: `id` (UUID), `user_id` (FK -> `users.id`), `emoji`, `label`, `color_theme`, `sort_order`, `created_at`
+- **`device_link_otps`**: `code` (6-digit numeric, PK), `user_id` (FK -> `users.id`), `expires_at` (5-minute TTL), `failed_attempts` (lockout at 5)
 - **`push_subscriptions`**: `id` (UUID), `user_id` (FK -> `users.id`), `endpoint` (UNIQUE), `p256dh`, `auth`, `created_at`
 - **`server_settings`**: `key` (PK), `value` (persists auto-generated VAPID keys)
 
@@ -142,6 +145,9 @@ The PWA Service Worker handles offline caching and background push:
 | `/api/auth/pair` | POST | Pair user with room code; sets `mood_session` HTTP-only cookie |
 | `/api/auth/session` | GET | Validates session cookie; returns user and partner info |
 | `/api/auth/unpair` | POST | Deletes active session and clears `mood_session` cookie |
+| `/api/auth/logout` | POST | Logs out current device only; other device sessions remain active |
+| `/api/auth/device-link/create` | POST | Generates 6-digit OTP and QR URL for linking another device (authenticated) |
+| `/api/auth/device-link/verify` | POST | Redeems 6-digit OTP to create a new session on a second device (public) |
 | `/api/mood` | GET | Returns user mood, partner mood, and partner nickname |
 | `/api/mood` | POST | Sets/updates mood, triggers partner SSE event and push notification |
 | `/api/mood` | DELETE | Clears mood, broadcasts `mood_cleared` event to partner |
@@ -189,6 +195,32 @@ The PWA Service Worker handles offline caching and background push:
   - Edit or delete reactions with strict validation enforcing 1 to 16 reactions.
   - Reset to original defaults anytime via the "Reset to Defaults" button.
   - Custom presets are persisted per user in the SQLite `user_presets` table and sync seamlessly across devices.
+
+---
+
+## Multi-Device Account Linking
+
+Mood Sender supports connecting your account to multiple devices simultaneously. Each device maintains its own independent session, and mood updates sync in real-time across all your connected devices and your partner's devices.
+
+### How It Works
+
+1. **Generate a Link Code**: On your already-signed-in device, open Settings and tap "Link New Device". The app generates a 6-digit OTP code and displays a QR code.
+2. **Connect the New Device**: On your second device (laptop, tablet, or another phone), you have three options:
+   - **Scan the QR code** with your phone's native camera -- the link URL opens the app and connects automatically.
+   - **Use the in-app QR scanner** on the "Link Existing Device" tab in the pairing screen.
+   - **Enter the 6-digit code manually** on the "Link Existing Device" tab.
+3. **Session Created**: The new device receives its own session cookie and immediately enters the dashboard with full access to your couple room.
+
+### Security
+
+- OTP codes expire after 5 minutes and are single-use (deleted upon successful redemption).
+- After 5 failed verification attempts on a code, it is locked out and deleted (HTTP 429).
+- Expired codes return HTTP 410; invalid codes return HTTP 404.
+
+### Device Logout vs Couple Unpair
+
+- **Log Out This Device**: Removes only the current device's session. All other devices (yours and your partner's) remain fully connected. Use this when switching between devices or removing access from a shared computer.
+- **Unpair Couple**: Deletes the calling device's session and clears the session cookie. Use this to disconnect from your couple room entirely.
 
 ---
 
@@ -243,14 +275,15 @@ Mood Sender is optimized to run as an installed standalone application on mobile
 
 ## Testing Verification
 
-The project includes an exhaustive automated test suite covering all layers (136 tests across 14 test suites):
+The project includes an exhaustive automated test suite covering all layers (181 tests across 18 test suites):
 
 - **Database Unit Tests** (`server/tests/db.test.ts`): Tables, constraints, user presets table, VAPID generation, session expiry.
+- **Device Link Unit Tests** (`server/tests/device-link.test.ts`): OTP generation, verification, expiration, lockout, session creation, logout.
 - **Service Worker Tests** (`client/tests/sw.test.ts`, `sw-register.test.ts`): Caching policies, v2 cache cleanup, network-first navigation, push events, client focus.
 - **API & Presets Tests** (`server/tests/api.test.ts`, `server/tests/presets.test.ts`): All routes, cookie auth, custom presets validation, reset, SSE stream, push subscription pruning.
 - **Vercel Edge Proxy Tests** (`tests/vercel-proxy.test.ts`): Dynamic backend URL resolution, cookie header forwarding, error handling.
-- **Client Components & App** (`client/tests/components.test.tsx`, `app.test.tsx`, `manage-presets.test.tsx`, `i18n.test.ts`): React components, Thai/English dictionary parity, language toggle, presets modal, draft note preservation, SSE listeners.
-- **End-to-End Test Suites** (`tests/e2e.test.ts`, `tests/e2e-presets.test.ts`): Full partner interaction lifecycle, live SSE broadcasts, push notifications, default Thai presets ("คิดถึง" and "หิว"), custom preset addition, and unpairing.
+- **Client Components & App** (`client/tests/components.test.tsx`, `app.test.tsx`, `manage-presets.test.tsx`, `device-link-components.test.tsx`, `i18n.test.ts`): React components, Thai/English dictionary parity, language toggle, presets modal, device link modals, camera scanner, PairModal tabs, draft note preservation, SSE listeners.
+- **End-to-End Test Suites** (`tests/e2e.test.ts`, `tests/e2e-presets.test.ts`, `tests/e2e-multi-device.test.ts`): Full partner interaction lifecycle, live SSE broadcasts, push notifications, default Thai presets, custom preset addition, multi-device OTP linking, single device logout, and unpairing.
 
 Run tests at any time with:
 ```bash
