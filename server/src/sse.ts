@@ -53,11 +53,10 @@ export function addConnection(userId: string, res: Response): () => void {
   return cleanup;
 }
 
-/**
- * Broadcasts an SSE event to all connected sessions of the partner user.
- */
-export function notifyPartner(partnerUserId: string, eventData: Record<string, unknown>): void {
-  const userConnections = connections.get(partnerUserId);
+export type SseEvent = Record<string, unknown>;
+
+function broadcastToUser(userId: string, eventData: SseEvent): void {
+  const userConnections = connections.get(userId);
   if (!userConnections || userConnections.size === 0) {
     return;
   }
@@ -74,6 +73,20 @@ export function notifyPartner(partnerUserId: string, eventData: Record<string, u
       // Errors handled on stream close
     }
   }
+}
+
+/**
+ * Broadcasts an SSE event to all connected sessions of the partner user.
+ */
+export function notifyPartner(partnerUserId: string, eventData: SseEvent): void {
+  broadcastToUser(partnerUserId, eventData);
+}
+
+/**
+ * Broadcasts an SSE event to all connected sessions of the user (multi-device sync).
+ */
+export function notifyUser(userId: string, eventData: SseEvent): void {
+  broadcastToUser(userId, eventData);
 }
 
 /**

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { getMood, setMood, deleteMood } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
-import { notifyPartner } from '../sse.js';
+import { notifyPartner, notifyUser } from '../sse.js';
 import { sendPushNotification } from '../push.js';
 
 export const moodRouter = Router();
@@ -60,16 +60,19 @@ moodRouter.post('/', async (req, res) => {
       typeof colorTheme === 'string' && colorTheme.trim() ? colorTheme.trim() : 'rose'
     );
 
+    // Prepare SSE event payload
+    const event = {
+      type: 'mood_update',
+      mood: updatedMood,
+      user: {
+        id: req.user.id,
+        nickname: req.user.nickname
+      }
+    };
+
     // Notify partner if present
     if (req.partner) {
-      notifyPartner(req.partner.id, {
-        type: 'mood_update',
-        mood: updatedMood,
-        user: {
-          id: req.user.id,
-          nickname: req.user.nickname
-        }
-      });
+      notifyPartner(req.partner.id, event);
 
       const noteSnippet = updatedMood.note ? ` — "${updatedMood.note}"` : '';
       sendPushNotification(req.partner.id, {
@@ -84,6 +87,9 @@ moodRouter.post('/', async (req, res) => {
       });
     }
 
+    // Notify user's active sessions (multi-device sync)
+    notifyUser(req.user.id, event);
+
     res.status(200).json({ mood: updatedMood });
   } catch (err: any) {
     res.status(500).json({ error: err?.message || 'Failed to update mood' });
@@ -92,21 +98,23 @@ moodRouter.post('/', async (req, res) => {
 
 /**
  * DELETE /api/mood
- * Clears current user's mood, notifies partner via SSE and Web Push.
+ * Clears current user's mood, notifies partner and other devices via SSE.
  */
 moodRouter.delete('/', async (req, res) => {
   try {
     deleteMood(req.user.id);
 
+    const event = {
+      type: 'mood_cleared',
+      mood: null,
+      user: {
+        id: req.user.id,
+        nickname: req.user.nickname
+      }
+    };
+
     if (req.partner) {
-      notifyPartner(req.partner.id, {
-        type: 'mood_cleared',
-        mood: null,
-        user: {
-          id: req.user.id,
-          nickname: req.user.nickname
-        }
-      });
+      notifyPartner(req.partner.id, event);
 
       sendPushNotification(req.partner.id, {
         title: `${req.user.nickname} cleared their mood`,
@@ -118,6 +126,9 @@ moodRouter.delete('/', async (req, res) => {
         console.error('Failed to dispatch push notification:', err);
       });
     }
+
+    // Notify user's active sessions (multi-device sync)
+    notifyUser(req.user.id, event);
 
     res.status(200).json({ ok: true });
   } catch (err: any) {

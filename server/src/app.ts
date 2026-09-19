@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import type { Database } from 'better-sqlite3';
 import { setDb } from './db.js';
 import { authRouter } from './routes/auth.js';
+import { deviceLinkRouter } from './routes/device-link.js';
 import { moodRouter } from './routes/mood.js';
 import { pushRouter } from './routes/push.js';
 import { streamRouter } from './routes/stream.js';
@@ -28,6 +29,7 @@ export function createApp(db?: Database): Express {
   });
 
   // API Routers
+  app.use('/api/auth/device-link', deviceLinkRouter);
   app.use('/api/auth', authRouter);
   app.use('/api/mood', moodRouter);
   app.use('/api/presets', presetsRouter);

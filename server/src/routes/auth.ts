@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { pairUser, deleteSession } from '../db.js';
+import { pairUser, deleteSession, logoutSession } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 
 export const authRouter = Router();
@@ -72,3 +72,18 @@ authRouter.post('/unpair', (req, res) => {
   res.clearCookie('mood_session', { path: '/' });
   res.status(200).json({ success: true });
 });
+
+/**
+ * POST /api/auth/logout
+ * Logs out current device session and clears session cookie.
+ */
+authRouter.post('/logout', requireAuth, (req, res) => {
+  const token = req.cookies?.mood_session || req.sessionToken;
+  if (token) {
+    logoutSession(token);
+  }
+
+  res.clearCookie('mood_session', { path: '/', maxAge: 0 });
+  res.status(200).json({ message: 'Logged out from this device' });
+});
+
