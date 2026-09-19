@@ -17,7 +17,9 @@ import {
   getAdminStats,
   revokeSession,
   revokeSessionsByCouple,
-  revokeAllSessions
+  revokeAllSessions,
+  getAllCouplesWithDetails,
+  deleteCouple
 } from '../src/db.js';
 import { parseUserAgent } from '../src/device.js';
 import { addConnection, isTokenOnline } from '../src/sse.js';
@@ -293,5 +295,51 @@ describe('Admin Subsystem & Device Tracking', () => {
         .set('Cookie', adminCookie);
       expect(listAfter.body.sessions.length).toBe(0);
     });
+
+    it('lists couples and deletes couple room via DELETE /api/admin/couples/:coupleId', async () => {
+      const app = createApp();
+
+      // Pair a couple with 2 members
+      const pair1 = pairUser('ROOMX', 'Emma');
+      pairUser('ROOMX', 'Noah');
+
+      // Login as admin
+      const loginRes = await request(app)
+        .post('/api/admin/login')
+        .send({ password: 'supersecretpass' });
+      const adminCookie = loginRes.headers['set-cookie'].find((c: string) => c.startsWith('admin_session='));
+
+      // GET /api/admin/couples
+      const couplesRes = await request(app)
+        .get('/api/admin/couples')
+        .set('Cookie', adminCookie);
+      expect(couplesRes.status).toBe(200);
+      expect(couplesRes.body.couples.length).toBe(1);
+      expect(couplesRes.body.couples[0].code).toBe('ROOMX');
+      expect(couplesRes.body.couples[0].members.length).toBe(2);
+      expect(couplesRes.body.couples[0].members[0].nickname).toBe('Emma');
+      expect(couplesRes.body.couples[0].members[1].nickname).toBe('Noah');
+      expect(couplesRes.body.couples[0].active_sessions_count).toBe(2);
+
+      // DELETE /api/admin/couples/:coupleId
+      const deleteCoupleRes = await request(app)
+        .delete(`/api/admin/couples/${pair1.couple.id}`)
+        .set('Cookie', adminCookie);
+      expect(deleteCoupleRes.status).toBe(200);
+      expect(deleteCoupleRes.body.success).toBe(true);
+      expect(deleteCoupleRes.body.coupleId).toBe(pair1.couple.id);
+
+      // Verify couples and sessions are now empty
+      const couplesAfter = await request(app)
+        .get('/api/admin/couples')
+        .set('Cookie', adminCookie);
+      expect(couplesAfter.body.couples.length).toBe(0);
+
+      const sessionsAfter = await request(app)
+        .get('/api/admin/sessions')
+        .set('Cookie', adminCookie);
+      expect(sessionsAfter.body.sessions.length).toBe(0);
+    });
   });
 });
+

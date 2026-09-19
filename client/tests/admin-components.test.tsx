@@ -125,6 +125,7 @@ describe('Admin UI Components (AdminPage)', () => {
         },
       ],
     });
+    vi.spyOn(api.admin, 'getCouples').mockResolvedValue({ couples: [] });
 
     render(
       <I18nProvider initialLanguage="en">
@@ -190,6 +191,7 @@ describe('Admin UI Components (AdminPage)', () => {
         },
       ],
     });
+    vi.spyOn(api.admin, 'getCouples').mockResolvedValue({ couples: [] });
 
     render(
       <I18nProvider initialLanguage="en">
@@ -234,6 +236,7 @@ describe('Admin UI Components (AdminPage)', () => {
         },
       ],
     });
+    vi.spyOn(api.admin, 'getCouples').mockResolvedValue({ couples: [] });
     const revokeSpy = vi.spyOn(api.admin, 'revokeSession').mockResolvedValue({ success: true });
 
     render(
@@ -255,12 +258,91 @@ describe('Admin UI Components (AdminPage)', () => {
       expect(screen.getByText(/Are you sure you want to revoke this device session\?/i)).toBeDefined();
     });
 
-    // Click confirm (Delete button)
-    const confirmDeleteBtn = screen.getByRole('button', { name: /Delete/i });
+    // Click confirm (exact Delete button text)
+    const confirmDeleteBtn = screen.getByRole('button', { name: /^Delete$/i });
     fireEvent.click(confirmDeleteBtn);
 
     await waitFor(() => {
       expect(revokeSpy).toHaveBeenCalledWith('target-session-token');
     });
   });
+
+  it('switches to Couple Rooms tab, lists rooms, and triggers room deletion', async () => {
+    vi.spyOn(api.admin, 'check').mockResolvedValue({ authenticated: true });
+    vi.spyOn(api.admin, 'getStats').mockResolvedValue({
+      total_couples: 1,
+      total_users: 2,
+      total_sessions: 2,
+      live_connections: 1,
+    });
+    vi.spyOn(api.admin, 'getSessions').mockResolvedValue({ sessions: [] });
+    vi.spyOn(api.admin, 'getCouples').mockResolvedValue({
+      couples: [
+        {
+          id: 'room-1-id',
+          code: 'HEART88',
+          created_at: '2026-09-19T08:00:00.000Z',
+          members: [
+            {
+              id: 'u1',
+              nickname: 'Chloe',
+              slot: 1,
+              created_at: '2026-09-19T08:00:00.000Z',
+              mood: { emoji: '🥰', label: 'In Love', updated_at: '2026-09-19T08:30:00.000Z' },
+            },
+            {
+              id: 'u2',
+              nickname: 'Lucas',
+              slot: 2,
+              created_at: '2026-09-19T08:05:00.000Z',
+              mood: null,
+            },
+          ],
+          active_sessions_count: 2,
+        },
+      ],
+    });
+    const deleteCoupleSpy = vi.spyOn(api.admin, 'deleteCouple').mockResolvedValue({ success: true, coupleId: 'room-1-id' });
+
+    render(
+      <I18nProvider initialLanguage="en">
+        <AdminPage />
+      </I18nProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Couple Rooms')).toBeDefined();
+    });
+
+    // Click Couple Rooms tab
+    const coupleTab = screen.getByRole('button', { name: /Couple Rooms/i });
+    fireEvent.click(coupleTab);
+
+    // Verify couple details are displayed
+    await waitFor(() => {
+      expect(screen.getByText('HEART88')).toBeDefined();
+      expect(screen.getByText('Chloe')).toBeDefined();
+      expect(screen.getByText('Lucas')).toBeDefined();
+      expect(screen.getByText('In Love')).toBeDefined();
+      expect(screen.getByText('No mood set')).toBeDefined();
+    });
+
+    // Click Delete Room button
+    const deleteBtn = screen.getByRole('button', { name: /Delete Room/i });
+    fireEvent.click(deleteBtn);
+
+    // Confirmation modal should appear
+    await waitFor(() => {
+      expect(screen.getByText(/You are about to permanently delete this couple room/i)).toBeDefined();
+    });
+
+    // Click confirm Delete
+    const confirmDeleteBtn = screen.getByRole('button', { name: /^Delete$/i });
+    fireEvent.click(confirmDeleteBtn);
+
+    await waitFor(() => {
+      expect(deleteCoupleSpy).toHaveBeenCalledWith('room-1-id');
+    });
+  });
 });
+

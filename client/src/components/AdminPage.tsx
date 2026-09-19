@@ -18,7 +18,7 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { api, ApiError } from '../api.js';
-import { AdminStats, AdminSessionDetail } from '../types.js';
+import { AdminStats, AdminSessionDetail, AdminCoupleDetail } from '../types.js';
 import { useTranslation } from '../i18n/index.js';
 
 export const AdminPage: React.FC = () => {
@@ -26,6 +26,9 @@ export const AdminPage: React.FC = () => {
 
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Tab navigation state
+  const [activeTab, setActiveTab] = useState<'sessions' | 'couples'>('sessions');
 
   // Login form state
   const [password, setPassword] = useState('');
@@ -37,6 +40,7 @@ export const AdminPage: React.FC = () => {
   // Dashboard data state
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [sessions, setSessions] = useState<AdminSessionDetail[]>([]);
+  const [couples, setCouples] = useState<AdminCoupleDetail[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -44,7 +48,7 @@ export const AdminPage: React.FC = () => {
 
   // Confirmation modal state
   const [confirmModal, setConfirmModal] = useState<{
-    type: 'session' | 'couple' | 'all';
+    type: 'session' | 'couple' | 'all' | 'deleteCouple';
     targetId?: string;
     title: string;
     message: string;
@@ -91,17 +95,19 @@ export const AdminPage: React.FC = () => {
     checkAuth();
   }, [checkAuth]);
 
-  // Load stats and sessions data
+  // Load stats, sessions, and couples data
   const loadDashboardData = useCallback(async () => {
     if (!isAuthenticated) return;
     setIsLoadingData(true);
     try {
-      const [statsData, sessionsData] = await Promise.all([
+      const [statsData, sessionsData, couplesData] = await Promise.all([
         api.admin.getStats(),
         api.admin.getSessions(),
+        api.admin.getCouples(),
       ]);
       setStats(statsData);
       setSessions(sessionsData.sessions || []);
+      setCouples(couplesData.couples || []);
     } catch (err) {
       console.error('Failed to load admin data:', err);
       showToast('Failed to load admin dashboard data');
@@ -164,9 +170,10 @@ export const AdminPage: React.FC = () => {
     setIsAuthenticated(false);
     setStats(null);
     setSessions([]);
+    setCouples([]);
   };
 
-  // Session Revocation Handlers
+  // Session & Couple Revocation Handlers
   const handleExecuteRevoke = async () => {
     if (!confirmModal) return;
     const { type, targetId } = confirmModal;
@@ -174,7 +181,10 @@ export const AdminPage: React.FC = () => {
     setActionLoading(targetId || type);
 
     try {
-      if (type === 'session' && targetId) {
+      if (type === 'deleteCouple' && targetId) {
+        await api.admin.deleteCouple(targetId);
+        showToast(t.admin.coupleDeletedToast);
+      } else if (type === 'session' && targetId) {
         await api.admin.revokeSession(targetId);
         showToast(t.admin.sessionRevokedToast);
       } else if (type === 'couple' && targetId) {
@@ -210,6 +220,18 @@ export const AdminPage: React.FC = () => {
       );
     });
   }, [sessions, searchQuery]);
+
+  // Filtered Couples
+  const filteredCouples = useMemo(() => {
+    if (!searchQuery.trim()) return couples;
+    const q = searchQuery.toLowerCase().trim();
+    return couples.filter((c) => {
+      return (
+        c.code.toLowerCase().includes(q) ||
+        c.members.some((m) => m.nickname.toLowerCase().includes(q))
+      );
+    });
+  }, [couples, searchQuery]);
 
   // Format relative or date string
   const formatTimestamp = (ts?: string) => {
@@ -471,176 +493,356 @@ export const AdminPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Sessions Section Header & Controls */}
-        <div className="bg-white rounded-3xl p-4 sm:p-6 border border-[#E8E0D7] shadow-cozy-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <div className="flex items-center space-x-2">
-                <h2 className="text-base sm:text-lg font-bold text-[#1C1917]">
-                  {t.admin.sessionsTitle}
-                </h2>
-                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-[#FAF7F2] text-[#5C5248] border border-[#E8E0D7]">
-                  {filteredSessions.length}
-                </span>
-              </div>
-              <p className="text-xs text-[#7A7067]">
-                {t.admin.sessionsDesc}
-              </p>
-            </div>
+        {/* Navigation Tabs */}
+        <div className="flex items-center space-x-2 border-b border-[#E8E0D7] pb-1">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('sessions');
+              setSearchQuery('');
+            }}
+            className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center space-x-2 ${
+              activeTab === 'sessions'
+                ? 'bg-white text-[#1C1917] shadow-cozy-sm border border-[#E8E0D7]'
+                : 'text-[#7A7067] hover:text-[#1C1917] hover:bg-white/50'
+            }`}
+          >
+            <Smartphone className="w-4 h-4" />
+            <span>{t.admin.tabSessions}</span>
+            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-[#FAF7F2] border border-[#E8E0D7]">
+              {sessions.length}
+            </span>
+          </button>
 
-            <div className="flex items-center space-x-2 self-start sm:self-auto">
-              <button
-                type="button"
-                onClick={loadDashboardData}
-                disabled={isLoadingData}
-                className="px-3 py-2 rounded-2xl bg-[#FAF7F2] hover:bg-[#F3ECE4] text-[#5C5248] border border-[#E8E0D7] text-xs font-bold flex items-center space-x-1.5 transition-all disabled:opacity-50"
-              >
-                <RefreshCw
-                  className={`w-3.5 h-3.5 ${isLoadingData ? 'animate-spin' : ''}`}
-                />
-                <span>{t.admin.refresh}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setConfirmModal({
-                    type: 'all',
-                    title: t.admin.revokeAllButton,
-                    message: t.admin.revokeAllConfirm,
-                  })
-                }
-                disabled={actionLoading !== null || sessions.length === 0}
-                className="px-3 py-2 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center space-x-1.5 transition-all disabled:opacity-50"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">{t.admin.revokeAllButton}</span>
-                <span className="sm:hidden">Revoke All</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Search Bar */}
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#8C827A]">
-              <Search className="w-4 h-4" />
-            </div>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t.admin.searchPlaceholder}
-              className="w-full pl-10 pr-4 py-2.5 bg-[#FAF7F2] border border-[#E2D8CF] rounded-2xl text-xs sm:text-sm text-[#2D2825] focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-400 transition-all placeholder:text-[#A89F95]"
-            />
-          </div>
-
-          {/* Sessions List */}
-          {filteredSessions.length === 0 ? (
-            <div className="py-12 text-center text-[#8C827A] space-y-2">
-              <Smartphone className="w-8 h-8 mx-auto opacity-40" />
-              <p className="text-xs font-medium">{t.admin.noSessionsFound}</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-[#F0EBE6]">
-              {filteredSessions.map((session) => (
-                <div
-                  key={session.token}
-                  className="py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 group transition-colors hover:bg-[#FAF7F2]/60 -mx-2 px-2 rounded-2xl"
-                >
-                  {/* Left Column: Device and User Info */}
-                  <div className="space-y-1.5 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {/* Live Online Badge */}
-                      {session.is_online ? (
-                        <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                          <span>{t.admin.onlineBadge}</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500 border border-gray-200">
-                          <span>{t.admin.offlineBadge}</span>
-                        </span>
-                      )}
-
-                      {/* Device name */}
-                      <span className="text-sm font-bold text-[#1C1917]">
-                        {session.device_info}
-                      </span>
-
-                      {/* Couple Code Badge */}
-                      <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-rose-50 text-rose-700 border border-rose-100">
-                        {session.couple_code}
-                      </span>
-
-                      {/* Slot Badge */}
-                      <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200/60">
-                        {session.user_slot === 1
-                          ? t.admin.slot1Badge
-                          : t.admin.slot2Badge}
-                      </span>
-                    </div>
-
-                    <div className="text-xs text-[#7A7067] flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span>
-                        <strong>{session.user_nickname}</strong>
-                      </span>
-                      <span>•</span>
-                      <span>
-                        {t.admin.createdPrefix}:{' '}
-                        {formatTimestamp(session.created_at)}
-                      </span>
-                      <span>•</span>
-                      <span>
-                        {t.admin.lastActivePrefix}:{' '}
-                        {formatTimestamp(session.last_active_at)}
-                      </span>
-                      <span className="font-mono text-[10px] text-[#A89F95]">
-                        ({session.token_preview})
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Right Column: Actions */}
-                  <div className="flex items-center space-x-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setConfirmModal({
-                          type: 'couple',
-                          targetId: session.couple_id,
-                          title: `${t.admin.revokeCoupleButton} (${session.couple_code})`,
-                          message: t.admin.revokeCoupleConfirm,
-                        })
-                      }
-                      disabled={actionLoading !== null}
-                      className="px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold transition-all disabled:opacity-50"
-                      title={t.admin.revokeCoupleButton}
-                    >
-                      {t.admin.revokeCoupleButton}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setConfirmModal({
-                          type: 'session',
-                          targetId: session.token,
-                          title: t.admin.revokeSessionButton,
-                          message: t.admin.revokeSessionConfirm,
-                        })
-                      }
-                      disabled={actionLoading !== null}
-                      className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all disabled:opacity-50 flex items-center space-x-1"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>{t.admin.revokeSessionButton}</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('couples');
+              setSearchQuery('');
+            }}
+            className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all flex items-center space-x-2 ${
+              activeTab === 'couples'
+                ? 'bg-white text-[#1C1917] shadow-cozy-sm border border-[#E8E0D7]'
+                : 'text-[#7A7067] hover:text-[#1C1917] hover:bg-white/50'
+            }`}
+          >
+            <Heart className="w-4 h-4 fill-rose-400 text-rose-500" />
+            <span>{t.admin.tabCouples}</span>
+            <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-[#FAF7F2] border border-[#E8E0D7]">
+              {couples.length}
+            </span>
+          </button>
         </div>
+
+        {activeTab === 'couples' ? (
+          /* Couples Section */
+          <div className="bg-white rounded-3xl p-4 sm:p-6 border border-[#E8E0D7] shadow-cozy-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h2 className="text-base sm:text-lg font-bold text-[#1C1917]">
+                    {t.admin.couplesTitle}
+                  </h2>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-[#FAF7F2] text-[#5C5248] border border-[#E8E0D7]">
+                    {filteredCouples.length}
+                  </span>
+                </div>
+                <p className="text-xs text-[#7A7067]">
+                  {t.admin.couplesDesc}
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-2 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={loadDashboardData}
+                  disabled={isLoadingData}
+                  className="px-3 py-2 rounded-2xl bg-[#FAF7F2] hover:bg-[#F3ECE4] text-[#5C5248] border border-[#E8E0D7] text-xs font-bold flex items-center space-x-1.5 transition-all disabled:opacity-50"
+                >
+                  <RefreshCw
+                    className={`w-3.5 h-3.5 ${isLoadingData ? 'animate-spin' : ''}`}
+                  />
+                  <span>{t.admin.refresh}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Search Bar for Couples */}
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#8C827A]">
+                <Search className="w-4 h-4" />
+              </div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t.admin.searchCouplesPlaceholder}
+                className="w-full pl-10 pr-4 py-2.5 bg-[#FAF7F2] border border-[#E2D8CF] rounded-2xl text-xs sm:text-sm text-[#2D2825] focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-400 transition-all placeholder:text-[#A89F95]"
+              />
+            </div>
+
+            {/* Couples List */}
+            {filteredCouples.length === 0 ? (
+              <div className="py-12 text-center text-[#8C827A] space-y-2">
+                <Heart className="w-8 h-8 mx-auto opacity-40 text-rose-400" />
+                <p className="text-xs font-medium">{t.admin.noCouplesFound}</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                {filteredCouples.map((couple) => (
+                  <div
+                    key={couple.id}
+                    className="p-4 rounded-3xl border border-[#E8E0D7] bg-[#FAF7F2]/40 hover:bg-white transition-all space-y-3 shadow-cozy-xs"
+                  >
+                    {/* Header: Room Code & Sessions badge & Delete button */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <span className="px-2.5 py-1 rounded-xl text-xs font-mono font-black bg-rose-100 text-rose-800 border border-rose-200">
+                          {couple.code}
+                        </span>
+                        <span className="text-[11px] text-[#7A7067]">
+                          {formatTimestamp(couple.created_at)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                          <Smartphone className="w-3 h-3 text-amber-600" />
+                          <span>{couple.active_sessions_count} {t.admin.activeSessionsLabel}</span>
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setConfirmModal({
+                              type: 'deleteCouple',
+                              targetId: couple.id,
+                              title: `${t.admin.deleteCoupleButton} (${couple.code})`,
+                              message: t.admin.deleteCoupleConfirm,
+                            })
+                          }
+                          disabled={actionLoading !== null}
+                          className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-all disabled:opacity-50"
+                          title={t.admin.deleteCoupleButton}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Members List */}
+                    <div className="space-y-2 pt-1">
+                      {couple.members.map((member) => (
+                        <div
+                          key={member.id}
+                          className="flex items-center justify-between p-2.5 rounded-2xl bg-white border border-[#E8E0D7]/80"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <span className="w-6 h-6 rounded-full bg-rose-50 text-rose-600 text-[10px] font-black flex items-center justify-center border border-rose-100">
+                              {member.slot}
+                            </span>
+                            <span className="text-xs font-bold text-[#1C1917]">
+                              {member.nickname}
+                            </span>
+                          </div>
+
+                          {member.mood ? (
+                            <div className="flex items-center space-x-1.5 px-2 py-1 rounded-xl bg-[#FAF7F2] border border-[#E8E0D7] text-xs font-semibold">
+                              <span>{member.mood.emoji}</span>
+                              <span className="text-[#5C5248]">{member.mood.label}</span>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-[#A89F95] italic">
+                              {t.admin.noMoodSet}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+
+                      {/* If only 1 member has joined */}
+                      {couple.members.length < 2 && (
+                        <div className="p-2.5 rounded-2xl border border-dashed border-[#D8CFC5] text-center text-[11px] text-[#A89F95] italic bg-white/40">
+                          {t.admin.waitingPartnerJoin}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Sessions Section Header & Controls */
+          <div className="bg-white rounded-3xl p-4 sm:p-6 border border-[#E8E0D7] shadow-cozy-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h2 className="text-base sm:text-lg font-bold text-[#1C1917]">
+                    {t.admin.sessionsTitle}
+                  </h2>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-[#FAF7F2] text-[#5C5248] border border-[#E8E0D7]">
+                    {filteredSessions.length}
+                  </span>
+                </div>
+                <p className="text-xs text-[#7A7067]">
+                  {t.admin.sessionsDesc}
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-2 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={loadDashboardData}
+                  disabled={isLoadingData}
+                  className="px-3 py-2 rounded-2xl bg-[#FAF7F2] hover:bg-[#F3ECE4] text-[#5C5248] border border-[#E8E0D7] text-xs font-bold flex items-center space-x-1.5 transition-all disabled:opacity-50"
+                >
+                  <RefreshCw
+                    className={`w-3.5 h-3.5 ${isLoadingData ? 'animate-spin' : ''}`}
+                  />
+                  <span>{t.admin.refresh}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setConfirmModal({
+                      type: 'all',
+                      title: t.admin.revokeAllButton,
+                      message: t.admin.revokeAllConfirm,
+                    })
+                  }
+                  disabled={actionLoading !== null || sessions.length === 0}
+                  className="px-3 py-2 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center space-x-1.5 transition-all disabled:opacity-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">{t.admin.revokeAllButton}</span>
+                  <span className="sm:hidden">Revoke All</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Search Bar */}
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#8C827A]">
+                <Search className="w-4 h-4" />
+              </div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t.admin.searchPlaceholder}
+                className="w-full pl-10 pr-4 py-2.5 bg-[#FAF7F2] border border-[#E2D8CF] rounded-2xl text-xs sm:text-sm text-[#2D2825] focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-400 transition-all placeholder:text-[#A89F95]"
+              />
+            </div>
+
+            {/* Sessions List */}
+            {filteredSessions.length === 0 ? (
+              <div className="py-12 text-center text-[#8C827A] space-y-2">
+                <Smartphone className="w-8 h-8 mx-auto opacity-40" />
+                <p className="text-xs font-medium">{t.admin.noSessionsFound}</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-[#F0EBE6]">
+                {filteredSessions.map((session) => (
+                  <div
+                    key={session.token}
+                    className="py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 group transition-colors hover:bg-[#FAF7F2]/60 -mx-2 px-2 rounded-2xl"
+                  >
+                    {/* Left Column: Device and User Info */}
+                    <div className="space-y-1.5 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Live Online Badge */}
+                        {session.is_online ? (
+                          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            <span>{t.admin.onlineBadge}</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500 border border-gray-200">
+                            <span>{t.admin.offlineBadge}</span>
+                          </span>
+                        )}
+
+                        {/* Device name */}
+                        <span className="text-sm font-bold text-[#1C1917]">
+                          {session.device_info}
+                        </span>
+
+                        {/* Couple Code Badge */}
+                        <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-rose-50 text-rose-700 border border-rose-100">
+                          {session.couple_code}
+                        </span>
+
+                        {/* Slot Badge */}
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200/60">
+                          {session.user_slot === 1
+                            ? t.admin.slot1Badge
+                            : t.admin.slot2Badge}
+                        </span>
+                      </div>
+
+                      <div className="text-xs text-[#7A7067] flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span>
+                          <strong>{session.user_nickname}</strong>
+                        </span>
+                        <span>•</span>
+                        <span>
+                          {t.admin.createdPrefix}:{' '}
+                          {formatTimestamp(session.created_at)}
+                        </span>
+                        <span>•</span>
+                        <span>
+                          {t.admin.lastActivePrefix}:{' '}
+                          {formatTimestamp(session.last_active_at)}
+                        </span>
+                        <span className="font-mono text-[10px] text-[#A89F95]">
+                          ({session.token_preview})
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Right Column: Actions */}
+                    <div className="flex items-center space-x-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setConfirmModal({
+                            type: 'couple',
+                            targetId: session.couple_id,
+                            title: `${t.admin.revokeCoupleButton} (${session.couple_code})`,
+                            message: t.admin.revokeCoupleConfirm,
+                          })
+                        }
+                        disabled={actionLoading !== null}
+                        className="px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold transition-all disabled:opacity-50"
+                        title={t.admin.revokeCoupleButton}
+                      >
+                        {t.admin.revokeCoupleButton}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setConfirmModal({
+                            type: 'session',
+                            targetId: session.token,
+                            title: t.admin.revokeSessionButton,
+                            message: t.admin.revokeSessionConfirm,
+                          })
+                        }
+                        disabled={actionLoading !== null}
+                        className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all disabled:opacity-50 flex items-center space-x-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>{t.admin.revokeSessionButton}</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </main>
 
       {/* Confirmation Dialog Modal */}

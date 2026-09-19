@@ -10,7 +10,9 @@ import {
   getAdminStats,
   revokeSession,
   revokeSessionsByCouple,
-  revokeAllSessions
+  revokeAllSessions,
+  getAllCouplesWithDetails,
+  deleteCouple
 } from '../db.js';
 import { requireAdminAuth } from '../middleware/adminAuth.js';
 
@@ -144,6 +146,25 @@ adminRouter.delete('/couples/:coupleId/sessions', requireAdminAuth, (req, res) =
   const { coupleId } = req.params;
   const count = revokeSessionsByCouple(coupleId);
   res.status(200).json({ success: true, revokedCount: count });
+});
+
+/**
+ * GET /api/admin/couples
+ * List of all couple rooms with member nicknames, slots, current moods, and active session counts.
+ */
+adminRouter.get('/couples', requireAdminAuth, (_req, res) => {
+  const couples = getAllCouplesWithDetails();
+  res.status(200).json({ couples });
+});
+
+/**
+ * DELETE /api/admin/couples/:coupleId
+ * Permanently deletes a couple room and cascades to all users, sessions, moods, presets, and tokens.
+ */
+adminRouter.delete('/couples/:coupleId', requireAdminAuth, (req, res) => {
+  const { coupleId } = req.params;
+  const deleted = deleteCouple(coupleId);
+  res.status(200).json({ success: deleted, coupleId });
 });
 
 /**

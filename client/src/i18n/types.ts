@@ -179,6 +179,19 @@ export interface TranslationSchema {
     lockoutWait: string;
     sessionRevokedToast: string;
     allRevokedToast: string;
+    tabSessions: string;
+    tabCouples: string;
+    couplesTitle: string;
+    couplesDesc: string;
+    deleteCoupleButton: string;
+    deleteCoupleConfirm: string;
+    coupleDeletedToast: string;
+    noCouplesFound: string;
+    membersLabel: string;
+    activeSessionsLabel: string;
+    noMoodSet: string;
+    waitingPartnerJoin: string;
+    searchCouplesPlaceholder: string;
   };
 }
 

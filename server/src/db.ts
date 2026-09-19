@@ -17,7 +17,9 @@ import type {
   UserPreset,
   DeviceLinkOtp,
   AdminSessionDetail,
-  AdminStats
+  AdminStats,
+  AdminCoupleDetail,
+  AdminCoupleMember
 } from './types.js';
 import { parseUserAgent } from './device.js';
 import {
@@ -1046,6 +1048,72 @@ export function revokeAllSessions(): number {
   const info = db.prepare('DELETE FROM sessions').run();
   return info.changes;
 }
+
+/**
+ * Retrieves all couple rooms with joined member nicknames, slots, current moods, and active session counts.
+ */
+export function getAllCouplesWithDetails(): AdminCoupleDetail[] {
+  const db = dbInstance ?? getDb();
+
+  const couples = db
+    .prepare('SELECT id, code, created_at FROM couples ORDER BY created_at DESC')
+    .all() as Couple[];
+
+  return couples.map((c) => {
+    const users = db
+      .prepare('SELECT id, nickname, slot, created_at FROM users WHERE couple_id = ? ORDER BY slot ASC')
+      .all(c.id) as Array<{ id: string; nickname: string; slot: 1 | 2; created_at: string }>;
+
+    const members: AdminCoupleMember[] = users.map((u) => {
+      const mood = db
+        .prepare('SELECT emoji, label, note, updated_at FROM moods WHERE user_id = ?')
+        .get(u.id) as { emoji: string; label: string; note: string | null; updated_at: string } | undefined;
+
+      return {
+        id: u.id,
+        nickname: u.nickname,
+        slot: u.slot,
+        created_at: u.created_at,
+        mood: mood ?? null,
+      };
+    });
+
+    const activeSessions = (db
+      .prepare('SELECT COUNT(*) as count FROM sessions WHERE user_id IN (SELECT id FROM users WHERE couple_id = ?)')
+      .get(c.id) as { count: number }).count;
+
+    return {
+      id: c.id,
+      code: c.code,
+      created_at: c.created_at || '',
+      members,
+      active_sessions_count: activeSessions,
+    };
+  });
+}
+
+/**
+ * Permanently deletes a couple room and cascades to all users, sessions, moods, presets, and tokens.
+ * Immediately notifies and disconnects any connected devices via SSE.
+ */
+export function deleteCouple(coupleId: string): boolean {
+  if (!coupleId) return false;
+  const db = dbInstance ?? getDb();
+
+  // Find all users in this couple and close their SSE connections
+  const users = db
+    .prepare('SELECT id FROM users WHERE couple_id = ?')
+    .all(coupleId) as Array<{ id: string }>;
+
+  for (const u of users) {
+    closeUserConnections(u.id);
+  }
+
+  // Delete couple (FOREIGN KEY ON DELETE CASCADE cleans up users, sessions, moods, presets, push_subscriptions, and OTPs)
+  const info = db.prepare('DELETE FROM couples WHERE id = ?').run(coupleId);
+  return info.changes > 0;
+}
+
 
 
 

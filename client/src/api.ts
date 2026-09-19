@@ -8,6 +8,7 @@ import {
   PresetMood,
   AdminSessionDetail,
   AdminStats,
+  AdminCoupleDetail,
 } from './types.js';
 
 export class ApiError extends Error {
@@ -247,6 +248,18 @@ export const api = {
 
     async revokeAllSessions(): Promise<{ success: boolean; revokedCount: number }> {
       return fetchApi<{ success: boolean; revokedCount: number }>('/api/admin/sessions', {
+        method: 'DELETE',
+      });
+    },
+
+    async getCouples(): Promise<{ couples: AdminCoupleDetail[] }> {
+      return fetchApi<{ couples: AdminCoupleDetail[] }>('/api/admin/couples', {
+        method: 'GET',
+      });
+    },
+
+    async deleteCouple(coupleId: string): Promise<{ success: boolean; coupleId: string }> {
+      return fetchApi<{ success: boolean; coupleId: string }>(`/api/admin/couples/${encodeURIComponent(coupleId)}`, {
         method: 'DELETE',
       });
     },

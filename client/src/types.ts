@@ -104,3 +104,25 @@ export interface AdminStats {
   live_connections: number;
 }
 
+export interface AdminCoupleMember {
+  id: string;
+  nickname: string;
+  slot: 1 | 2;
+  created_at?: string;
+  mood?: {
+    emoji: string;
+    label: string;
+    note?: string | null;
+    updated_at?: string;
+  } | null;
+}
+
+export interface AdminCoupleDetail {
+  id: string;
+  code: string;
+  created_at: string;
+  members: AdminCoupleMember[];
+  active_sessions_count: number;
+}
+
+
