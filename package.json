@@ -4,12 +4,13 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "server",
-    "client"
+    "client",
+    "server"
   ],
   "scripts": {
     "dev": "bun --cwd client dev",
     "build": "bun --cwd client build && rm -rf dist && cp -r client/dist dist",
+    "tsc": "bun run build",
     "postinstall": "test -d client/src && bun run build || true",
     "start": "bun server/src/index.ts",
     "test": "vitest run",
