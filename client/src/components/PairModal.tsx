@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Heart, AlertCircle, ArrowRight, Dices } from 'lucide-react';
+import { Heart, AlertCircle, ArrowRight, Dices, Camera } from 'lucide-react';
 import { api, ApiError } from '../api.js';
 import { SessionResponse } from '../types.js';
 import { useTranslation } from '../i18n/index.js';
+import { CameraScannerModal } from './CameraScannerModal.js';
 
 interface PairModalProps {
   onPairSuccess: (session: SessionResponse) => void;
@@ -10,8 +11,11 @@ interface PairModalProps {
 
 export const PairModal: React.FC<PairModalProps> = ({ onPairSuccess }) => {
   const { language, toggleLanguage, t } = useTranslation();
+  const [activeTab, setActiveTab] = useState<'pair' | 'link'>('pair');
   const [code, setCode] = useState('');
   const [nickname, setNickname] = useState('');
+  const [otp, setOtp] = useState('');
+  const [showCamera, setShowCamera] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -36,7 +40,13 @@ export const PairModal: React.FC<PairModalProps> = ({ onPairSuccess }) => {
     setErrorMessage(null);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleOtpChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 6);
+    setOtp(digits);
+    setErrorMessage(null);
+  };
+
+  const handleSubmitPair = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanCode = code.trim().toUpperCase();
     const cleanNick = nickname.trim();
@@ -75,6 +85,53 @@ export const PairModal: React.FC<PairModalProps> = ({ onPairSuccess }) => {
     }
   };
 
+  const handleVerifyDeviceLink = async (codeToVerify: string) => {
+    setIsLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const response = await api.auth.verifyDeviceLink(codeToVerify);
+      onPairSuccess(response);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        if (err.status === 404) {
+          setErrorMessage(t.pairing.errorInvalidOtp);
+        } else if (err.status === 410) {
+          setErrorMessage(t.pairing.errorExpiredOtp);
+        } else if (err.status === 429) {
+          setErrorMessage(t.pairing.errorLockoutOtp);
+        } else {
+          setErrorMessage(err.message || t.pairing.errorDefault);
+        }
+      } else {
+        setErrorMessage(t.pairing.errorNetwork);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmitLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanOtp = otp.replace(/\D/g, '');
+    if (cleanOtp.length !== 6) {
+      setErrorMessage(t.pairing.errorInvalidOtp);
+      return;
+    }
+    await handleVerifyDeviceLink(cleanOtp);
+  };
+
+  const handleScanSuccess = async (scannedCode: string) => {
+    const cleanCode = scannedCode.replace(/\D/g, '').slice(0, 6);
+    setOtp(cleanCode);
+    setShowCamera(false);
+    if (cleanCode.length === 6) {
+      await handleVerifyDeviceLink(cleanCode);
+    }
+  };
+
+  const formattedOtp = otp.length > 3 ? `${otp.slice(0, 3)} ${otp.slice(3)}` : otp;
+
   return (
     <div className="min-h-[100dvh] bg-[#FAF7F2] flex items-center justify-center p-4 px-5 relative overflow-hidden">
       {/* Ambient background glows */}
@@ -102,7 +159,7 @@ export const PairModal: React.FC<PairModalProps> = ({ onPairSuccess }) => {
         </div>
 
         {/* Header Branding */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-3xl bg-gradient-to-tr from-rose-100 to-rose-50 text-rose-500 mb-4 border border-rose-200/70 shadow-cozy-xs">
             <Heart className="w-8 h-8 fill-rose-500 text-rose-500 animate-soft-pulse" />
           </div>
@@ -114,6 +171,42 @@ export const PairModal: React.FC<PairModalProps> = ({ onPairSuccess }) => {
           </p>
         </div>
 
+        {/* Tab Selector */}
+        <div role="tablist" className="flex bg-[#FAF7F2] p-1 rounded-2xl border border-[#E8E2D9] mb-6">
+          <button
+            role="tab"
+            type="button"
+            aria-selected={activeTab === 'pair'}
+            onClick={() => {
+              setActiveTab('pair');
+              setErrorMessage(null);
+            }}
+            className={`flex-1 py-2 px-3 text-xs font-semibold rounded-xl transition-all ${
+              activeTab === 'pair'
+                ? 'bg-white text-[#2D2825] shadow-cozy-xs font-bold border border-[#E8E2D9]/60'
+                : 'text-[#8C827A] hover:text-[#2D2825]'
+            }`}
+          >
+            {t.pairing.tabPair}
+          </button>
+          <button
+            role="tab"
+            type="button"
+            aria-selected={activeTab === 'link'}
+            onClick={() => {
+              setActiveTab('link');
+              setErrorMessage(null);
+            }}
+            className={`flex-1 py-2 px-3 text-xs font-semibold rounded-xl transition-all ${
+              activeTab === 'link'
+                ? 'bg-white text-[#2D2825] shadow-cozy-xs font-bold border border-[#E8E2D9]/60'
+                : 'text-[#8C827A] hover:text-[#2D2825]'
+            }`}
+          >
+            {t.pairing.tabLinkDevice}
+          </button>
+        </div>
+
         {/* Error Feedback */}
         {errorMessage && (
           <div className="mb-6 p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-start space-x-2.5 text-xs sm:text-sm text-rose-800 shadow-xs animate-fade-in">
@@ -122,76 +215,145 @@ export const PairModal: React.FC<PairModalProps> = ({ onPairSuccess }) => {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Couple Code Section */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label htmlFor="couple-code" className="text-xs font-semibold text-[#2D2825] uppercase tracking-wider">
-                {t.pairing.coupleCodeLabel}
-              </label>
-              <button
-                type="button"
-                onClick={generateRandomCode}
-                className="inline-flex items-center space-x-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 bg-rose-50/80 hover:bg-rose-100/80 px-2.5 py-1 rounded-xl border border-rose-200/70 shadow-cozy-xs active:scale-[0.96] transition-all"
-              >
-                <Dices className="w-3.5 h-3.5" />
-                <span>{t.pairing.generateRandom}</span>
-              </button>
+        {/* Tab 1: Couple Pairing */}
+        {activeTab === 'pair' && (
+          <form onSubmit={handleSubmitPair} className="space-y-5">
+            {/* Couple Code Section */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label htmlFor="couple-code" className="text-xs font-semibold text-[#2D2825] uppercase tracking-wider">
+                  {t.pairing.coupleCodeLabel}
+                </label>
+                <button
+                  type="button"
+                  onClick={generateRandomCode}
+                  className="inline-flex items-center space-x-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 bg-rose-50/80 hover:bg-rose-100/80 px-2.5 py-1 rounded-xl border border-rose-200/70 shadow-cozy-xs active:scale-[0.96] transition-all"
+                >
+                  <Dices className="w-3.5 h-3.5" />
+                  <span>{t.pairing.generateRandom}</span>
+                </button>
+              </div>
+              <div className="relative">
+                <input
+                  id="couple-code"
+                  type="text"
+                  value={code}
+                  onChange={handleCodeChange}
+                  placeholder={t.pairing.codePlaceholder}
+                  maxLength={20}
+                  className="w-full bg-[#FAF7F2] border border-[#E8E2D9] rounded-2xl px-4 py-3 text-base font-mono font-bold tracking-wider text-[#2D2825] placeholder:text-[#8C827A]/60 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:bg-white transition-all uppercase shadow-inner tabular-nums"
+                  disabled={isLoading}
+                />
+              </div>
+              <p className="text-[11px] text-[#8C827A] mt-1.5 leading-normal text-pretty">
+                {t.pairing.codeHelp}
+              </p>
             </div>
-            <div className="relative">
+
+            {/* Nickname Section */}
+            <div>
+              <label htmlFor="nickname" className="block text-xs font-semibold text-[#2D2825] uppercase tracking-wider mb-1.5">
+                {t.pairing.nicknameLabel}
+              </label>
               <input
-                id="couple-code"
+                id="nickname"
                 type="text"
-                value={code}
-                onChange={handleCodeChange}
-                placeholder={t.pairing.codePlaceholder}
-                maxLength={20}
-                className="w-full bg-[#FAF7F2] border border-[#E8E2D9] rounded-2xl px-4 py-3 text-base font-mono font-bold tracking-wider text-[#2D2825] placeholder:text-[#8C827A]/60 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:bg-white transition-all uppercase shadow-inner tabular-nums"
+                value={nickname}
+                onChange={handleNicknameChange}
+                placeholder={t.pairing.nicknamePlaceholder}
+                maxLength={30}
+                className="w-full bg-[#FAF7F2] border border-[#E8E2D9] rounded-2xl px-4 py-3 text-base text-[#2D2825] placeholder:text-[#8C827A]/60 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:bg-white transition-all shadow-inner"
                 disabled={isLoading}
               />
+              <p className="text-[11px] text-[#8C827A] mt-1.5 leading-normal text-pretty">
+                {t.pairing.nicknameHelp}
+              </p>
             </div>
-            <p className="text-[11px] text-[#8C827A] mt-1.5 leading-normal text-pretty">
-              {t.pairing.codeHelp}
-            </p>
-          </div>
 
-          {/* Nickname Section */}
-          <div>
-            <label htmlFor="nickname" className="block text-xs font-semibold text-[#2D2825] uppercase tracking-wider mb-1.5">
-              {t.pairing.nicknameLabel}
-            </label>
-            <input
-              id="nickname"
-              type="text"
-              value={nickname}
-              onChange={handleNicknameChange}
-              placeholder={t.pairing.nicknamePlaceholder}
-              maxLength={30}
-              className="w-full bg-[#FAF7F2] border border-[#E8E2D9] rounded-2xl px-4 py-3 text-base text-[#2D2825] placeholder:text-[#8C827A]/60 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:bg-white transition-all shadow-inner"
-              disabled={isLoading}
-            />
-            <p className="text-[11px] text-[#8C827A] mt-1.5 leading-normal text-pretty">
-              {t.pairing.nicknameHelp}
-            </p>
-          </div>
+            {/* Submit Action */}
+            <button
+              type="submit"
+              disabled={isLoading || !code.trim() || !nickname.trim()}
+              className="w-full mt-2 py-3.5 px-6 rounded-2xl bg-gradient-to-b from-[#2D2825] to-[#1C1917] hover:from-black hover:to-[#1C1917] text-[#FAF7F2] font-semibold text-sm shadow-md hover:shadow-lg flex items-center justify-center space-x-2 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed border border-white/10"
+            >
+              {isLoading ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <>
+                  <span>{t.pairing.enterRoom}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </form>
+        )}
 
-          {/* Submit Action */}
-          <button
-            type="submit"
-            disabled={isLoading || !code.trim() || !nickname.trim()}
-            className="w-full mt-2 py-3.5 px-6 rounded-2xl bg-gradient-to-b from-[#2D2825] to-[#1C1917] hover:from-black hover:to-[#1C1917] text-[#FAF7F2] font-semibold text-sm shadow-md hover:shadow-lg flex items-center justify-center space-x-2 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed border border-white/10"
-          >
-            {isLoading ? (
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <>
-                <span>{t.pairing.enterRoom}</span>
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
-          </button>
-        </form>
+        {/* Tab 2: Link Existing Device */}
+        {activeTab === 'link' && (
+          <form onSubmit={handleSubmitLink} className="space-y-5">
+            <div>
+              <label
+                htmlFor="device-otp"
+                className="block text-xs font-semibold text-[#2D2825] uppercase tracking-wider mb-1.5"
+              >
+                {t.deviceLink.codeLabel}
+              </label>
+              <div className="relative">
+                <input
+                  id="device-otp"
+                  type="text"
+                  inputMode="numeric"
+                  value={formattedOtp}
+                  onChange={handleOtpChange}
+                  placeholder={t.pairing.otpPlaceholder}
+                  maxLength={7}
+                  className="w-full bg-[#FAF7F2] border border-[#E8E2D9] rounded-2xl px-4 py-3.5 text-2xl font-mono font-bold tracking-widest text-center text-[#2D2825] placeholder:text-[#8C827A]/60 placeholder:text-sm placeholder:font-sans placeholder:tracking-normal focus:outline-none focus:ring-2 focus:ring-rose-400 focus:bg-white transition-all shadow-inner tabular-nums"
+                  disabled={isLoading}
+                  autoComplete="one-time-code"
+                />
+              </div>
+              <p className="text-[11px] text-[#8C827A] mt-1.5 leading-normal text-pretty text-center">
+                {t.deviceLink.modalSubtitle}
+              </p>
+            </div>
+
+            {/* In-app Camera Scanner Trigger */}
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowCamera(true)}
+                className="w-full py-2.5 px-3 bg-white hover:bg-stone-50 border border-[#E8E2D9] text-[#2D2825] hover:border-rose-300 font-semibold text-xs rounded-xl shadow-cozy-xs flex items-center justify-center space-x-2 active:scale-[0.98] transition-all"
+              >
+                <Camera className="w-4 h-4 text-rose-500" />
+                <span>{t.pairing.scanningQr}</span>
+              </button>
+            </div>
+
+            {/* Submit Action */}
+            <button
+              type="submit"
+              disabled={isLoading || otp.replace(/\D/g, '').length !== 6}
+              className="w-full mt-2 py-3.5 px-6 rounded-2xl bg-gradient-to-b from-[#2D2825] to-[#1C1917] hover:from-black hover:to-[#1C1917] text-[#FAF7F2] font-semibold text-sm shadow-md hover:shadow-lg flex items-center justify-center space-x-2 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed border border-white/10"
+            >
+              {isLoading ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <>
+                  <span>{t.pairing.connectDevice}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </form>
+        )}
       </div>
+
+      {/* Camera Scanner Modal */}
+      <CameraScannerModal
+        isOpen={showCamera}
+        onClose={() => setShowCamera(false)}
+        onScanSuccess={handleScanSuccess}
+      />
     </div>
   );
 };

@@ -78,7 +78,31 @@ export const AppContent: React.FC = () => {
 
     async function initSession() {
       try {
-        const sessionData = await api.auth.getSession();
+        const urlParams =
+          typeof window !== 'undefined'
+            ? new URLSearchParams(window.location.search)
+            : null;
+        const linkCode = urlParams ? urlParams.get('code') : null;
+        let sessionData: SessionResponse;
+
+        if (linkCode && /^\d{6}$/.test(linkCode)) {
+          try {
+            sessionData = await api.auth.verifyDeviceLink(linkCode);
+            if (typeof window !== 'undefined' && window.history?.replaceState) {
+              window.history.replaceState({}, '', window.location.pathname);
+            }
+            showToast({ message: t.deviceLink.connectedSuccess, emoji: '📱' });
+          } catch (linkErr) {
+            console.warn('Auto-login with device link failed, falling back to getSession:', linkErr);
+            if (typeof window !== 'undefined' && window.history?.replaceState) {
+              window.history.replaceState({}, '', window.location.pathname);
+            }
+            sessionData = await api.auth.getSession();
+          }
+        } else {
+          sessionData = await api.auth.getSession();
+        }
+
         if (!mounted) return;
         setSession(sessionData);
         setPartner(sessionData.partner);
@@ -106,7 +130,7 @@ export const AppContent: React.FC = () => {
     return () => {
       mounted = false;
     };
-  }, [loadMoods]);
+  }, [loadMoods, showToast, t]);
 
   // Establish SSE connection when authenticated
   useEffect(() => {
@@ -127,18 +151,26 @@ export const AppContent: React.FC = () => {
       try {
         const payload = JSON.parse(event.data) as SseEvent;
         if (payload.type === 'mood_update') {
-          setPartnerMood(payload.mood);
-          const partnerName = payload.user?.nickname || t.toasts.defaultPartnerName;
-          showToast({
-            message: `${partnerName} ${t.toasts.moodUpdated}`,
-            emoji: payload.mood.emoji,
-          });
+          if (payload.user?.id && session?.user?.id && payload.user.id === session.user.id) {
+            setMyMood(payload.mood);
+          } else {
+            setPartnerMood(payload.mood);
+            const partnerName = payload.user?.nickname || t.toasts.defaultPartnerName;
+            showToast({
+              message: `${partnerName} ${t.toasts.moodUpdated}`,
+              emoji: payload.mood.emoji,
+            });
+          }
         } else if (payload.type === 'mood_cleared') {
-          setPartnerMood(null);
-          const partnerName = payload.user?.nickname || t.toasts.defaultPartnerName;
-          showToast({
-            message: `${partnerName} ${t.toasts.moodCleared}`,
-          });
+          if (payload.user?.id && session?.user?.id && payload.user.id === session.user.id) {
+            setMyMood(null);
+          } else {
+            setPartnerMood(null);
+            const partnerName = payload.user?.nickname || t.toasts.defaultPartnerName;
+            showToast({
+              message: `${partnerName} ${t.toasts.moodCleared}`,
+            });
+          }
         }
       } catch (err) {
         console.error('Failed to parse SSE payload:', err);
@@ -146,6 +178,7 @@ export const AppContent: React.FC = () => {
     };
 
     function connectStream() {
+      if (typeof EventSource === 'undefined') return;
       if (es) {
         es.removeEventListener('mood_update', handleSseMessage as EventListener);
         es.removeEventListener('mood_cleared', handleSseMessage as EventListener);
@@ -270,6 +303,15 @@ export const AppContent: React.FC = () => {
     setSseConnected(false);
   };
 
+  const handleLogout = async () => {
+    await api.auth.logout();
+    setSession(null);
+    setMyMood(null);
+    setPartnerMood(null);
+    setPartner(null);
+    setSseConnected(false);
+  };
+
   const handleSubscribePush = async () => {
     await subscribeToPush();
   };
@@ -302,6 +344,7 @@ export const AppContent: React.FC = () => {
         user={session.user}
         partner={partner}
         onUnpair={handleUnpair}
+        onLogout={handleLogout}
       />
 
       {/* Real-time Toast Alert */}

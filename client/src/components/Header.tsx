@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Heart, Copy, Check, Radio, Settings, LogOut, X } from 'lucide-react';
+import { Heart, Copy, Check, Radio, Settings, LogOut, X, Smartphone } from 'lucide-react';
 import { useTranslation } from '../i18n/index.js';
+import { DeviceLinkModal } from './DeviceLinkModal.js';
 
 interface HeaderProps {
   coupleCode?: string;
@@ -8,6 +9,7 @@ interface HeaderProps {
   user?: { nickname: string; slot: number } | null;
   partner?: { nickname: string } | null;
   onUnpair: () => Promise<void> | void;
+  onLogout?: () => Promise<void> | void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -16,11 +18,14 @@ export const Header: React.FC<HeaderProps> = ({
   user,
   partner,
   onUnpair,
+  onLogout,
 }) => {
   const { language, setLanguage, toggleLanguage, t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showDeviceLink, setShowDeviceLink] = useState(false);
   const [unpairing, setUnpairing] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const handleCopyCode = async () => {
     if (!coupleCode) return;
@@ -58,6 +63,18 @@ export const Header: React.FC<HeaderProps> = ({
       setShowSettings(false);
     } finally {
       setUnpairing(false);
+    }
+  };
+
+  const handleConfirmLogout = async () => {
+    setLoggingOut(true);
+    try {
+      if (onLogout) {
+        await onLogout();
+      }
+      setShowSettings(false);
+    } finally {
+      setLoggingOut(false);
     }
   };
 
@@ -203,8 +220,32 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             </div>
 
-            <div className="border-t border-[#E8E2D9] pt-4">
-              <p className="text-xs text-[#8C827A] mb-3 leading-relaxed text-pretty">
+            <div className="space-y-2 mb-5">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSettings(false);
+                  setShowDeviceLink(true);
+                }}
+                className="w-full flex items-center justify-center space-x-2 bg-white hover:bg-[#FAF7F2] text-[#2D2825] font-semibold py-2.5 px-4 rounded-xl border border-[#E8E2D9] shadow-cozy-xs hover:border-rose-300 active:scale-[0.98] transition-all"
+              >
+                <Smartphone className="w-4 h-4 text-rose-500" />
+                <span>{t.header.linkNewDevice}</span>
+              </button>
+            </div>
+
+            <div className="border-t border-[#E8E2D9] pt-4 space-y-2">
+              <button
+                type="button"
+                disabled={loggingOut}
+                onClick={handleConfirmLogout}
+                className="w-full flex items-center justify-center space-x-2 bg-stone-100/80 hover:bg-stone-200/80 text-stone-700 font-semibold py-2.5 px-4 rounded-xl border border-[#E8E2D9] active:scale-[0.98] transition-all disabled:opacity-50"
+              >
+                <LogOut className="w-4 h-4 text-stone-500" />
+                <span>{loggingOut ? t.header.loggingOut : t.header.logoutThisDevice}</span>
+              </button>
+
+              <p className="text-xs text-[#8C827A] pt-2 mb-1 leading-relaxed text-pretty">
                 {t.header.unpairDesc}
               </p>
               <button
@@ -220,6 +261,12 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
       )}
+
+      {/* Device Link Modal */}
+      <DeviceLinkModal
+        isOpen={showDeviceLink}
+        onClose={() => setShowDeviceLink(false)}
+      />
     </>
   );
 };
