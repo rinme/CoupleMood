@@ -35,7 +35,7 @@ describe('CoupleMood End-to-End Verification & Production Integration', () => {
       expect(res.headers['service-worker-allowed']).toBe('/');
       expect(res.headers['cache-control']).toMatch(/no-cache/);
       expect(res.headers['content-type']).toMatch(/javascript/);
-      expect(res.text).toContain('mood-sender-v1');
+      expect(res.text).toContain('mood-sender-v2');
     });
 
     it('serves client SPA on GET / with index.html content', async () => {
@@ -57,6 +57,17 @@ describe('CoupleMood End-to-End Verification & Production Integration', () => {
       expect(res.status).toBe(404);
       expect(res.body.error).toBe('Endpoint not found');
       expect(res.text).not.toContain('<!DOCTYPE html>');
+    });
+
+    it('returns 404 for missing static assets and files with extensions instead of serving index.html', async () => {
+      const missingJs = await request(app).get('/assets/missing-chunk-12345.js');
+      expect(missingJs.status).toBe(404);
+      expect(missingJs.text).not.toContain('<!DOCTYPE html>');
+      expect(missingJs.text).not.toContain('<!doctype html>');
+
+      const missingCss = await request(app).get('/assets/missing-style.css');
+      expect(missingCss.status).toBe(404);
+      expect(missingCss.text).not.toContain('<!DOCTYPE html>');
     });
   });
 

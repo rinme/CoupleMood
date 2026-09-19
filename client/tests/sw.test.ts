@@ -395,7 +395,7 @@ describe('Service Worker (client/public/sw.js)', () => {
   it('cleans up old caches on activate and claims clients without deleting current cache', async () => {
     loadServiceWorker();
 
-    cachesKeysMock.mockResolvedValue(['mood-sender-v1', 'old-cache-v0', 'another-v2']);
+    cachesKeysMock.mockResolvedValue(['mood-sender-v2', 'old-cache-v0', 'another-v1']);
 
     const activateHandler = listeners['activate'][0];
     let waitUntilPromise: Promise<any> | null = null;
@@ -412,9 +412,61 @@ describe('Service Worker (client/public/sw.js)', () => {
     expect(cachesKeysMock).toHaveBeenCalled();
     expect(cachesDeleteMock).toHaveBeenCalledTimes(2);
     expect(cachesDeleteMock).toHaveBeenCalledWith('old-cache-v0');
-    expect(cachesDeleteMock).toHaveBeenCalledWith('another-v2');
-    expect(cachesDeleteMock).not.toHaveBeenCalledWith('mood-sender-v1');
+    expect(cachesDeleteMock).toHaveBeenCalledWith('another-v1');
+    expect(cachesDeleteMock).not.toHaveBeenCalledWith('mood-sender-v2');
     expect(clientsClaimMock).toHaveBeenCalled();
+  });
+
+  it('fetch listener handles navigation requests with network-first and caches updated HTML', async () => {
+    loadServiceWorker();
+
+    const fetchHandler = listeners['fetch'][0];
+    let respondWithPromise: Promise<any> | null = null;
+
+    const navRequest = {
+      url: 'http://localhost:3000/',
+      mode: 'navigate',
+      method: 'GET',
+    };
+    fetchHandler({
+      request: navRequest,
+      respondWith: (val: Promise<any>) => {
+        respondWithPromise = val;
+      },
+    });
+
+    expect(respondWithPromise).not.toBeNull();
+    const res = await respondWithPromise;
+    expect(fetchMock).toHaveBeenCalledWith(navRequest);
+    expect(mockCache.put).toHaveBeenCalledWith(navRequest, expect.anything());
+    expect(res.status).toBe(200);
+  });
+
+  it('fetch listener falls back to cached shell when navigation request fails offline', async () => {
+    loadServiceWorker();
+
+    const fetchHandler = listeners['fetch'][0];
+    let respondWithPromise: Promise<any> | null = null;
+
+    fetchMock.mockRejectedValueOnce(new Error('Failed to fetch'));
+    const cachedShell = { status: 200, body: 'cached index.html' };
+    cachesMatchMock.mockResolvedValueOnce(cachedShell);
+
+    const navRequest = {
+      url: 'http://localhost:3000/',
+      mode: 'navigate',
+      method: 'GET',
+    };
+    fetchHandler({
+      request: navRequest,
+      respondWith: (val: Promise<any>) => {
+        respondWithPromise = val;
+      },
+    });
+
+    expect(respondWithPromise).not.toBeNull();
+    const res = await respondWithPromise;
+    expect(res).toBe(cachedShell);
   });
 
   it('fetch listener delegates network-first for /api requests', async () => {

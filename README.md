@@ -67,7 +67,7 @@ bun run dev
 
 ### Running the Full Test Suite
 
-Execute all 129 unit, integration, service worker, component, and end-to-end tests across 13 test suites:
+Execute all 132 unit, integration, service worker, component, and end-to-end tests across 13 test suites:
 ```bash
 bun run test
 # or

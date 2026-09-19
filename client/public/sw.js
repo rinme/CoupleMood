@@ -1,7 +1,7 @@
 // Mood Sender Service Worker
 // Handles caching, Web Push notifications, and notification click navigation
 
-const CACHE_NAME = 'mood-sender-v1';
+const CACHE_NAME = 'mood-sender-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/manifest.json',
@@ -36,7 +36,11 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event: Network-first for API requests, cache-first for static shell
+// Fetch event:
+// - SSE: bypass cache
+// - Navigation / HTML: Network-first with cache fallback (prevents stale chunk references)
+// - API: Network-first
+// - Static assets: Cache-first
 self.addEventListener('fetch', (event) => {
   const { request } = event;
 
@@ -84,7 +88,32 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache-first for static assets and shell
+  // Navigation requests (HTML document): Network-first with offline cache fallback
+  const isNavigation = request.mode === 'navigate' || pathname === '/' || pathname.endsWith('.html');
+  if (isNavigation) {
+    event.respondWith(
+      Promise.resolve()
+        .then(() => fetch(request))
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches
+              .open(CACHE_NAME)
+              .then((cache) => cache.put(request, responseClone))
+              .catch(() => {});
+          }
+          return networkResponse;
+        })
+        .catch(async () => {
+          const cached = (await caches.match(request)) || (await caches.match('/'));
+          if (cached) return cached;
+          throw new Error('Offline and no cached shell available');
+        })
+    );
+    return;
+  }
+
+  // Cache-first for hashed static assets and icons
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
       if (cachedResponse) {
@@ -106,12 +135,7 @@ self.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         })
-        .catch(async (err) => {
-          // If navigation fails, fall back to cached root app shell
-          if (request.mode === 'navigate') {
-            const shell = await caches.match('/');
-            if (shell) return shell;
-          }
+        .catch((err) => {
           throw err;
         });
     })

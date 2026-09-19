@@ -49,7 +49,12 @@ export function createProductionApp(clientDistPath?: string, db?: Database): Exp
     next();
   });
 
-  // 2. Serve static assets from client/dist if present
+  // 2. API 404 handler: unhandled /api/* routes return 404 JSON, not SPA fallback
+  app.all('/api/*', (_req, res) => {
+    res.status(404).json({ error: 'Endpoint not found' });
+  });
+
+  // 3. Serve static assets from client/dist if present
   if (fs.existsSync(distPath)) {
     app.use(express.static(distPath, {
       setHeaders: (res, filePath) => {
@@ -60,18 +65,19 @@ export function createProductionApp(clientDistPath?: string, db?: Database): Exp
       }
     }));
 
-    // 3. API 404 handler: unhandled /api/* routes return 404 JSON, not SPA fallback
-    app.all('/api/*', (_req, res) => {
-      res.status(404).json({ error: 'Endpoint not found' });
-    });
-
-    // 4. SPA Fallback: non-API routes serve index.html
+    // 4. SPA Fallback: non-API, non-asset navigation routes serve index.html
     app.get('*', (req, res, next) => {
-      if (req.path.startsWith('/api/')) {
-        return next();
+      // Never serve index.html for API routes, assets, or paths with file extensions
+      if (
+        req.path.startsWith('/api/') ||
+        req.path.startsWith('/assets/') ||
+        path.extname(req.path) !== ''
+      ) {
+        return res.status(404).send('Not Found');
       }
       const indexPath = path.join(distPath, 'index.html');
       if (fs.existsSync(indexPath)) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         return res.sendFile(indexPath);
       }
       next();
