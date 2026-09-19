@@ -1,5 +1,5 @@
-# Use official lightweight Bun image
-FROM oven/bun:1.2-slim AS base
+# Use official lightweight Bun image (Bun 1.4+)
+FROM oven/bun:1-slim AS base
 WORKDIR /app
 
 # Install build dependencies for native SQLite compilation
