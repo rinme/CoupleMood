@@ -61,16 +61,45 @@ describe('Backend API Routes, SSE & Web Push Integration', () => {
       expect(res2.body.partner.nickname).toBe('Alice');
     });
 
-    it('POST /api/auth/pair rejects 3rd user with 409 Conflict', async () => {
+    it('POST /api/auth/pair allows existing members to rejoin full room (case-insensitive)', async () => {
+      const res1 = await request(app).post('/api/auth/pair').send({ code: 'REJOIN-API', nickname: 'Alice' });
+      const res2 = await request(app).post('/api/auth/pair').send({ code: 'REJOIN-API', nickname: 'Bob' });
+
+      expect(res1.status).toBe(200);
+      expect(res2.status).toBe(200);
+
+      // Alice rejoins with lowercase nickname
+      const rejoinRes = await request(app)
+        .post('/api/auth/pair')
+        .send({ code: 'REJOIN-API', nickname: 'alice' });
+
+      expect(rejoinRes.status).toBe(200);
+      expect(rejoinRes.body.user.id).toBe(res1.body.user.id);
+      expect(rejoinRes.body.user.nickname).toBe('Alice');
+      expect(rejoinRes.body.partner.id).toBe(res2.body.user.id);
+      expect(rejoinRes.headers['set-cookie']).toBeDefined();
+    });
+
+    it('POST /api/auth/pair rejects 3rd user with 409 and locks out after 5 failures with 429', async () => {
       await request(app).post('/api/auth/pair').send({ code: 'FULL-8888', nickname: 'Alice' });
       await request(app).post('/api/auth/pair').send({ code: 'FULL-8888', nickname: 'Bob' });
 
-      const res3 = await request(app)
-        .post('/api/auth/pair')
-        .send({ code: 'FULL-8888', nickname: 'Charlie' });
+      // 4 failed attempts
+      for (let i = 1; i <= 4; i++) {
+        const res = await request(app)
+          .post('/api/auth/pair')
+          .send({ code: 'FULL-8888', nickname: `Wrong${i}` });
+        expect(res.status).toBe(409);
+        expect(res.body.error).toMatch(/Couple code is full/i);
+      }
 
-      expect(res3.status).toBe(409);
-      expect(res3.body.error).toMatch(/Couple code is full/i);
+      // 5th failed attempt triggers 429 Too Many Requests
+      const res5 = await request(app)
+        .post('/api/auth/pair')
+        .send({ code: 'FULL-8888', nickname: 'Wrong5' });
+      expect(res5.status).toBe(429);
+      expect(res5.body.error).toMatch(/Too many failed join attempts/i);
+      expect(res5.body.waitSeconds).toBeGreaterThan(0);
     });
 
     it('POST /api/auth/pair rejects empty or invalid body with 400', async () => {

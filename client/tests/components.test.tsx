@@ -173,6 +173,26 @@ describe('Frontend UI Components', () => {
       });
     });
 
+    it('shows inline error alert when rate limited (429)', async () => {
+      vi.spyOn(api.auth, 'pair').mockRejectedValue(new ApiError(429, 'Too many failed join attempts'));
+
+      render(<PairModal onPairSuccess={vi.fn()} />);
+
+      const codeInput = screen.getByLabelText('รหัสคู่รัก');
+      const nickInput = screen.getByLabelText('ชื่อเล่นของคุณ');
+
+      fireEvent.change(codeInput, { target: { value: 'LOVE-FULL' } });
+      fireEvent.change(nickInput, { target: { value: 'WrongUser' } });
+
+      const submitBtn = screen.getByText('เข้าสู่ห้อง');
+      const form = submitBtn.closest('form')!;
+      fireEvent.submit(form);
+
+      await waitFor(() => {
+        expect(screen.getByText(/ลองเข้าสู่ห้องผิดพลาดหลายครั้งเกินไป|Too many failed/i)).toBeTruthy();
+      });
+    });
+
     it('supports English language switching in PairModal', () => {
       render(
         <I18nProvider>

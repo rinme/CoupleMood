@@ -199,6 +199,12 @@ function createSchema(db: Database): void {
     );
 
     CREATE INDEX IF NOT EXISTS idx_device_link_otps_user ON device_link_otps(user_id);
+
+    CREATE TABLE IF NOT EXISTS room_join_attempts (
+      key TEXT PRIMARY KEY,
+      failed_attempts INTEGER NOT NULL DEFAULT 0,
+      locked_until DATETIME
+    );
   `);
 
   // Safe migration for existing databases: ensure new session columns exist
@@ -306,13 +312,46 @@ export function pairUser(code: string, nickname: string, userAgent?: string): Pa
       .prepare('SELECT id, couple_id, nickname, slot, created_at FROM users WHERE couple_id = ? ORDER BY slot ASC')
       .all(couple.id) as User[];
 
+    // 3. Check if an existing member has the same nickname (case-insensitive) to rejoin
+    const matchingUser = existingUsers.find(
+      (u) => u.nickname.trim().toLowerCase() === trimmedNickname.toLowerCase()
+    );
+
+    if (matchingUser) {
+      // Rejoining as existing user — determine partner (if another member exists)
+      const partner = existingUsers.find((u) => u.id !== matchingUser.id) || null;
+
+      // Generate new 32-byte cryptographic session token
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      const deviceInfo = parseUserAgent(userAgent);
+
+      db.prepare(
+        'INSERT INTO sessions (token, user_id, user_agent, device_info, last_active_at, expires_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)'
+      ).run(
+        token,
+        matchingUser.id,
+        userAgent ?? null,
+        deviceInfo,
+        expiresAt
+      );
+
+      return {
+        user: matchingUser,
+        couple,
+        partner,
+        token
+      };
+    }
+
+    // 4. If nickname does not match existing user, room must not be full
     if (existingUsers.length >= 2) {
-      const err = new Error('Couple code is full');
+      const err = new Error('Couple code is full. If you are already a member, please enter your registered nickname.');
       (err as unknown as { status: number }).status = 409;
       throw err;
     }
 
-    // 3. Determine slot and partner
+    // 5. Determine slot and partner for new user
     let slot: 1 | 2;
     let partner: User | null = null;
 
@@ -324,7 +363,7 @@ export function pairUser(code: string, nickname: string, userAgent?: string): Pa
       slot = (partner.slot === 1 ? 2 : 1) as 1 | 2;
     }
 
-    // 4. Create user
+    // 6. Create user
     const userId = crypto.randomUUID();
     db.prepare('INSERT INTO users (id, couple_id, nickname, slot) VALUES (?, ?, ?, ?)').run(
       userId,
@@ -340,7 +379,7 @@ export function pairUser(code: string, nickname: string, userAgent?: string): Pa
       slot
     };
 
-    // 5. Generate 32-byte cryptographic session token (64 hex characters)
+    // 7. Generate 32-byte cryptographic session token (64 hex characters)
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     const deviceInfo = parseUserAgent(userAgent);
@@ -882,6 +921,89 @@ export function resetAdminFailedAttempts(ip: string): void {
   if (!ip) return;
   const db = dbInstance ?? getDb();
   db.prepare('DELETE FROM admin_login_attempts WHERE ip = ?').run(ip);
+}
+
+export const MAX_ROOM_JOIN_FAILED_ATTEMPTS = 5;
+export const ROOM_JOIN_LOCKOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Checks whether an (IP, couple_code) pair is currently locked out from join attempts.
+ */
+export function checkRoomJoinLockout(ip: string, code: string): { locked: boolean; waitSeconds?: number } {
+  if (!ip || !code) return { locked: false };
+  const normalizedKey = `${ip.trim()}:${code.trim().toUpperCase()}`;
+  const db = dbInstance ?? getDb();
+  const row = db
+    .prepare('SELECT failed_attempts, locked_until FROM room_join_attempts WHERE key = ?')
+    .get(normalizedKey) as { failed_attempts: number; locked_until: string | null } | undefined;
+
+  if (!row || !row.locked_until) {
+    return { locked: false };
+  }
+
+  const lockedTime = new Date(row.locked_until).getTime();
+  const now = Date.now();
+  if (lockedTime > now) {
+    return {
+      locked: true,
+      waitSeconds: Math.ceil((lockedTime - now) / 1000)
+    };
+  }
+
+  // Lockout expired: remove record
+  db.prepare('DELETE FROM room_join_attempts WHERE key = ?').run(normalizedKey);
+  return { locked: false };
+}
+
+/**
+ * Records a failed join attempt for an (IP, couple_code) on a full room.
+ * Triggers a 5-minute lockout when 5 failures are reached.
+ */
+export function recordRoomJoinFailedAttempt(ip: string, code: string): { locked: boolean; waitSeconds?: number; attemptsLeft: number } {
+  if (!ip || !code) return { locked: false, attemptsLeft: MAX_ROOM_JOIN_FAILED_ATTEMPTS };
+  const normalizedKey = `${ip.trim()}:${code.trim().toUpperCase()}`;
+  const db = dbInstance ?? getDb();
+  const row = db
+    .prepare('SELECT failed_attempts FROM room_join_attempts WHERE key = ?')
+    .get(normalizedKey) as { failed_attempts: number } | undefined;
+
+  const currentAttempts = (row?.failed_attempts ?? 0) + 1;
+
+  if (currentAttempts >= MAX_ROOM_JOIN_FAILED_ATTEMPTS) {
+    const lockedUntil = new Date(Date.now() + ROOM_JOIN_LOCKOUT_MS).toISOString();
+    db.prepare(`
+      INSERT INTO room_join_attempts (key, failed_attempts, locked_until)
+      VALUES (?, ?, ?)
+      ON CONFLICT(key) DO UPDATE SET failed_attempts = excluded.failed_attempts, locked_until = excluded.locked_until
+    `).run(normalizedKey, currentAttempts, lockedUntil);
+
+    return {
+      locked: true,
+      waitSeconds: Math.ceil(ROOM_JOIN_LOCKOUT_MS / 1000),
+      attemptsLeft: 0
+    };
+  }
+
+  db.prepare(`
+    INSERT INTO room_join_attempts (key, failed_attempts, locked_until)
+    VALUES (?, ?, NULL)
+    ON CONFLICT(key) DO UPDATE SET failed_attempts = excluded.failed_attempts, locked_until = NULL
+  `).run(normalizedKey, currentAttempts);
+
+  return {
+    locked: false,
+    attemptsLeft: MAX_ROOM_JOIN_FAILED_ATTEMPTS - currentAttempts
+  };
+}
+
+/**
+ * Resets failed join attempts for an (IP, couple_code) upon successful join or rejoin.
+ */
+export function resetRoomJoinFailedAttempts(ip: string, code: string): void {
+  if (!ip || !code) return;
+  const normalizedKey = `${ip.trim()}:${code.trim().toUpperCase()}`;
+  const db = dbInstance ?? getDb();
+  db.prepare('DELETE FROM room_join_attempts WHERE key = ?').run(normalizedKey);
 }
 
 /**

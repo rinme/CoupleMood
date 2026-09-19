@@ -1,5 +1,12 @@
 import { Router } from 'express';
-import { pairUser, deleteSession, logoutSession } from '../db.js';
+import {
+  pairUser,
+  deleteSession,
+  logoutSession,
+  checkRoomJoinLockout,
+  recordRoomJoinFailedAttempt,
+  resetRoomJoinFailedAttempts
+} from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 
 export const authRouter = Router();
@@ -7,6 +14,8 @@ export const authRouter = Router();
 /**
  * POST /api/auth/pair
  * Pairs user to couple room and issues HTTP-only session cookie.
+ * Supports rejoining as an existing member using their nickname.
+ * Includes brute-force protection for guessing member names in full rooms.
  */
 authRouter.post('/pair', (req, res) => {
   const { code, nickname } = req.body ?? {};
@@ -21,9 +30,24 @@ authRouter.post('/pair', (req, res) => {
     return;
   }
 
+  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+
+  // Check lockout
+  const lockout = checkRoomJoinLockout(clientIp, code);
+  if (lockout.locked) {
+    res.status(429).json({
+      error: `Too many failed join attempts for this room. Please wait ${lockout.waitSeconds} seconds.`,
+      waitSeconds: lockout.waitSeconds
+    });
+    return;
+  }
+
   try {
     const userAgent = req.headers['user-agent'];
     const result = pairUser(code, nickname, userAgent);
+
+    // Reset failed attempts on successful join or rejoin
+    resetRoomJoinFailedAttempts(clientIp, code);
 
     // 30 days expiration for session cookie
     const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -41,7 +65,17 @@ authRouter.post('/pair', (req, res) => {
     });
   } catch (err: any) {
     if (err?.status === 409 || err?.message?.includes('Couple code is full')) {
-      res.status(409).json({ error: 'Couple code is full' });
+      const attemptResult = recordRoomJoinFailedAttempt(clientIp, code);
+      if (attemptResult.locked) {
+        res.status(429).json({
+          error: `Too many failed join attempts for this room. Please wait ${attemptResult.waitSeconds} seconds.`,
+          waitSeconds: attemptResult.waitSeconds
+        });
+        return;
+      }
+      res.status(409).json({
+        error: 'Couple code is full. If you are already a member, please enter your registered nickname.'
+      });
       return;
     }
     res.status(400).json({ error: err?.message || 'Failed to pair' });

@@ -6,7 +6,10 @@ import {
   getVapidKeys,
   pairUser,
   getSession,
-  deleteSession
+  deleteSession,
+  checkRoomJoinLockout,
+  recordRoomJoinFailedAttempt,
+  resetRoomJoinFailedAttempts
 } from '../src/db.js';
 import type { Database as DatabaseType } from 'better-sqlite3';
 
@@ -109,6 +112,41 @@ describe('Database Schema, VAPID & Pairing Operations', () => {
       expect(user2.partner?.slot).toBe(1);
     });
 
+    it('allows member to rejoin 1-person room with same nickname (case-insensitive) without taking slot 2', () => {
+      const u1 = pairUser('REJOIN-1', 'Alice');
+      const u1_rejoin = pairUser('REJOIN-1', 'alice'); // Case-insensitive
+
+      expect(u1_rejoin.user.id).toBe(u1.user.id);
+      expect(u1_rejoin.user.slot).toBe(1);
+      expect(u1_rejoin.partner).toBeNull();
+      expect(u1_rejoin.token).not.toBe(u1.token);
+      // Both sessions remain active
+      expect(getSession(u1.token)).not.toBeNull();
+      expect(getSession(u1_rejoin.token)).not.toBeNull();
+
+      // Partner can still join slot 2
+      const u2 = pairUser('REJOIN-1', 'Bob');
+      expect(u2.user.slot).toBe(2);
+      expect(u2.partner?.id).toBe(u1.user.id);
+    });
+
+    it('allows both members to rejoin a full room with their existing nicknames (case-insensitive)', () => {
+      const u1 = pairUser('REJOIN-2', 'Emma');
+      const u2 = pairUser('REJOIN-2', 'Liam');
+
+      // Emma rejoins
+      const emmaRejoin = pairUser('REJOIN-2', 'EMMA');
+      expect(emmaRejoin.user.id).toBe(u1.user.id);
+      expect(emmaRejoin.partner?.id).toBe(u2.user.id);
+      expect(emmaRejoin.partner?.nickname).toBe('Liam');
+
+      // Liam rejoins
+      const liamRejoin = pairUser('REJOIN-2', 'liam');
+      expect(liamRejoin.user.id).toBe(u2.user.id);
+      expect(liamRejoin.partner?.id).toBe(u1.user.id);
+      expect(liamRejoin.partner?.nickname).toBe('Emma');
+    });
+
     it('rejects a 3rd user attempting to join a full couple with "Couple code is full"', () => {
       pairUser('FULL-9999', 'Alice');
       pairUser('FULL-9999', 'Bob');
@@ -122,6 +160,34 @@ describe('Database Schema, VAPID & Pairing Operations', () => {
       expect(() => pairUser('', 'Alice')).toThrow();
       expect(() => pairUser('VALID', '')).toThrow();
       expect(() => pairUser('   ', 'Bob')).toThrow();
+    });
+  });
+
+  describe('Room Join Attempt Lockout', () => {
+    it('tracks failed join attempts per IP and room code, locking out after 5 failures and resetting on success', () => {
+      const ip = '192.168.1.50';
+      const code = 'TEST-LOCK';
+
+      expect(checkRoomJoinLockout(ip, code).locked).toBe(false);
+
+      // Record 4 failed attempts
+      for (let i = 1; i <= 4; i++) {
+        const res = recordRoomJoinFailedAttempt(ip, code);
+        expect(res.locked).toBe(false);
+        expect(res.attemptsLeft).toBe(5 - i);
+      }
+
+      // 5th attempt locks out
+      const res5 = recordRoomJoinFailedAttempt(ip, code);
+      expect(res5.locked).toBe(true);
+      expect(res5.waitSeconds).toBeGreaterThan(0);
+
+      // Check lockout status
+      expect(checkRoomJoinLockout(ip, code).locked).toBe(true);
+
+      // Reset
+      resetRoomJoinFailedAttempts(ip, code);
+      expect(checkRoomJoinLockout(ip, code).locked).toBe(false);
     });
   });
 

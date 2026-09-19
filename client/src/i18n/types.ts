@@ -58,6 +58,7 @@ export interface TranslationSchema {
     errorEmptyCode: string;
     errorEmptyNickname: string;
     errorRoomFull: string;
+    errorRateLimit: string;
     errorDefault: string;
     errorNetwork: string;
     errorInvalidOtp: string;

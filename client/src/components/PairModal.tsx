@@ -74,6 +74,8 @@ export const PairModal: React.FC<PairModalProps> = ({ onPairSuccess }) => {
       if (err instanceof ApiError) {
         if (err.status === 409) {
           setErrorMessage(t.pairing.errorRoomFull);
+        } else if (err.status === 429) {
+          setErrorMessage(err.message || t.pairing.errorRateLimit);
         } else {
           setErrorMessage(err.message || t.pairing.errorDefault);
         }
