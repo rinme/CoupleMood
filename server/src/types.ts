@@ -69,3 +69,12 @@ export interface UserPreset {
   sort_order: number;
   created_at?: string;
 }
+
+export interface DeviceLinkOtp {
+  code: string;
+  user_id: string;
+  expires_at: string;
+  failed_attempts: number;
+  created_at?: string;
+}
+

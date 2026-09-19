@@ -14,8 +14,10 @@ import type {
   VapidKeys,
   PairResult,
   SessionResult,
-  UserPreset
+  UserPreset,
+  DeviceLinkOtp
 } from './types.js';
+
 
 let dbInstance: Database | null = null;
 
@@ -158,6 +160,17 @@ function createSchema(db: Database): void {
     );
 
     CREATE INDEX IF NOT EXISTS idx_user_presets_user ON user_presets(user_id, sort_order);
+
+    CREATE TABLE IF NOT EXISTS device_link_otps (
+      code TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      expires_at DATETIME NOT NULL,
+      failed_attempts INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_device_link_otps_user ON device_link_otps(user_id);
   `);
 }
 
@@ -578,4 +591,151 @@ export function resetUserPresets(userId: string): void {
   const db = dbInstance ?? getDb();
   db.prepare('DELETE FROM user_presets WHERE user_id = ?').run(userId);
 }
+
+/**
+ * Generates a 6-digit numeric OTP for linking a new device, valid for 5 minutes.
+ * Deletes any existing pending OTPs for this user.
+ */
+export function createDeviceLinkOtp(userId: string): { code: string; expiresAt: string } {
+  if (!userId) {
+    throw new Error('User ID is required');
+  }
+
+  const db = dbInstance ?? getDb();
+
+  // Delete any prior OTPs for this user
+  db.prepare('DELETE FROM device_link_otps WHERE user_id = ?').run(userId);
+
+  // Generate 6-digit numeric code
+  const code = crypto.randomInt(100000, 1000000).toString();
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+
+  db.prepare(`
+    INSERT INTO device_link_otps (code, user_id, expires_at, failed_attempts)
+    VALUES (?, ?, ?, 0)
+  `).run(code, userId, expiresAt);
+
+  return { code, expiresAt };
+}
+
+/**
+ * Verifies a 6-digit device link OTP.
+ * On success, creates a new session for the user and deletes the OTP.
+ * Throws with appropriate status:
+ * - 404: Invalid or expired code
+ * - 410: Code has expired
+ * - 429: Too many failed attempts
+ */
+export function verifyDeviceLinkOtp(code: string): PairResult {
+  const normalizedCode = code?.trim();
+  if (!normalizedCode) {
+    const err = new Error('Invalid or expired code');
+    (err as unknown as { status: number }).status = 404;
+    throw err;
+  }
+
+  const db = dbInstance ?? getDb();
+
+  const otp = db
+    .prepare('SELECT code, user_id, expires_at, failed_attempts FROM device_link_otps WHERE code = ?')
+    .get(normalizedCode) as DeviceLinkOtp | undefined;
+
+  if (!otp) {
+    const err = new Error('Invalid or expired code');
+    (err as unknown as { status: number }).status = 404;
+    throw err;
+  }
+
+  // Check failed attempts (lockout threshold: 5)
+  if (otp.failed_attempts >= 5) {
+    db.prepare('DELETE FROM device_link_otps WHERE code = ?').run(normalizedCode);
+    const err = new Error('Too many failed attempts');
+    (err as unknown as { status: number }).status = 429;
+    throw err;
+  }
+
+  // Check expiration
+  const expiresAt = new Date(otp.expires_at).getTime();
+  if (Number.isNaN(expiresAt) || expiresAt <= Date.now()) {
+    db.prepare('DELETE FROM device_link_otps WHERE code = ?').run(normalizedCode);
+    const err = new Error('Code has expired');
+    (err as unknown as { status: number }).status = 410;
+    throw err;
+  }
+
+  // Fetch user
+  const user = db
+    .prepare('SELECT id, couple_id, nickname, slot, created_at FROM users WHERE id = ?')
+    .get(otp.user_id) as User | undefined;
+
+  if (!user) {
+    db.prepare('DELETE FROM device_link_otps WHERE code = ?').run(normalizedCode);
+    const err = new Error('User not found');
+    (err as unknown as { status: number }).status = 404;
+    throw err;
+  }
+
+  // Fetch couple
+  const couple = db
+    .prepare('SELECT id, code, created_at FROM couples WHERE id = ?')
+    .get(user.couple_id) as Couple | undefined;
+
+  if (!couple) {
+    db.prepare('DELETE FROM device_link_otps WHERE code = ?').run(normalizedCode);
+    const err = new Error('Couple not found');
+    (err as unknown as { status: number }).status = 404;
+    throw err;
+  }
+
+  // Fetch partner
+  const partner = db
+    .prepare(
+      'SELECT id, couple_id, nickname, slot, created_at FROM users WHERE couple_id = ? AND id != ?'
+    )
+    .get(user.couple_id, user.id) as User | undefined;
+
+  // Redeem OTP in transaction: issue session token and delete OTP
+  const redeemTx = db.transaction((): PairResult => {
+    const token = crypto.randomBytes(32).toString('hex');
+    const sessionExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    db.prepare('INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)').run(
+      token,
+      user.id,
+      sessionExpiresAt
+    );
+
+    db.prepare('DELETE FROM device_link_otps WHERE code = ?').run(normalizedCode);
+
+    return {
+      user,
+      couple,
+      partner: partner ?? null,
+      token
+    };
+  });
+
+  return redeemTx();
+}
+
+/**
+ * Increments failed attempts for an OTP.
+ */
+export function recordOtpFailure(code: string): void {
+  const normalizedCode = code?.trim();
+  if (!normalizedCode) return;
+
+  const db = dbInstance ?? getDb();
+  db.prepare(
+    'UPDATE device_link_otps SET failed_attempts = failed_attempts + 1 WHERE code = ?'
+  ).run(normalizedCode);
+}
+
+/**
+ * Logs out a session by deleting the session token.
+ */
+export function logoutSession(token: string): void {
+  deleteSession(token);
+}
+
 
