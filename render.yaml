@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: couplemood-backend
+    runtime: docker
+    plan: free
+    region: oregon
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: NODE_ENV
+        value: production
+      - key: DB_PATH
+        value: /app/data/mood.db
+    disk:
+      name: mood-data
+      mountPath: /app/data
+      sizeGB: 1

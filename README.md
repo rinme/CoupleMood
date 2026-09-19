@@ -67,7 +67,7 @@ bun run dev
 
 ### Running the Full Test Suite
 
-Execute all 132 unit, integration, service worker, component, and end-to-end tests across 13 test suites:
+Execute all 136 unit, integration, service worker, component, edge proxy, and end-to-end tests across 14 test suites:
 ```bash
 bun run test
 # or
@@ -127,8 +127,9 @@ Foreign key enforcement is strictly enabled via `PRAGMA foreign_keys = ON;`.
 ### 2. Service Worker (`client/public/sw.js`)
 
 The PWA Service Worker handles offline caching and background push:
-- **Cache Name**: `mood-sender-v1`
-- **App Shell Cache**: Cache-first strategy for static assets (`/`, `/manifest.json`, icon assets).
+- **Cache Name**: `mood-sender-v2`
+- **Navigation Requests**: Network-first strategy for HTML documents with offline cache fallback to avoid serving stale chunk references.
+- **App Shell & Assets Cache**: Cache-first strategy for static assets (`/manifest.json`, icon assets, hashed JS/CSS).
 - **API Requests**: Network-first strategy for `/api/*` requests with cache fallback when offline.
 - **SSE Stream**: Automatically bypasses service worker cache directly to network for `/api/stream`.
 - **Headers on `/sw.js`**: `Service-Worker-Allowed: /` and `Cache-Control: no-cache, no-store, must-revalidate` ensure prompt updates and full-origin scope.
@@ -191,6 +192,33 @@ The PWA Service Worker handles offline caching and background push:
 
 ---
 
+## Deploying to Vercel
+
+CoupleMood is configured for one-click deployment on Vercel with an edge proxy architecture:
+- **Frontend PWA**: Hosted on Vercel's global edge CDN with preconfigured caching rules in `vercel.json`.
+- **Edge API Proxy (`api/[[...path]].ts`)**: An Edge Function transparently forwards `/api/*` requests to your persistent backend, preserving HTTP-only session cookies and real-time Server-Sent Events (SSE).
+
+### Step 1: Deploy Persistent Backend
+
+Deploy the persistent backend container to Render, Railway, Fly.io, or your own VPS:
+
+- **Render (Blueprint)**: Connect your repository and select `render.yaml`. It automatically provisions a persistent disk at `/app/data` to preserve your SQLite database.
+- **Docker**: Build and run with `docker build -t couplemood . && docker run -p 3000:3000 -v couplemood-data:/app/data couplemood`.
+
+Note your backend service URL (e.g., `https://couplemood-backend.onrender.com`).
+
+### Step 2: Deploy to Vercel
+
+1. Push your repository to GitHub.
+2. In the Vercel Dashboard, click **Add New Project** and import **CoupleMood**.
+3. Vercel automatically detects the Vite framework and Bun build command (`bun run build`).
+4. Under **Environment Variables**, add:
+   - `BACKEND_URL`: Your persistent backend URL (e.g., `https://couplemood-backend.onrender.com`).
+5. Click **Deploy**.
+6. Your PWA will be live at `https://your-project.vercel.app` with instant global delivery, offline support, and synchronized real-time status.
+
+---
+
 ## Installing the PWA on Mobile Devices
 
 Mood Sender is optimized to run as an installed standalone application on mobile devices.
@@ -215,11 +243,12 @@ Mood Sender is optimized to run as an installed standalone application on mobile
 
 ## Testing Verification
 
-The project includes an exhaustive automated test suite covering all layers (129 tests across 13 test suites):
+The project includes an exhaustive automated test suite covering all layers (136 tests across 14 test suites):
 
 - **Database Unit Tests** (`server/tests/db.test.ts`): Tables, constraints, user presets table, VAPID generation, session expiry.
-- **Service Worker Tests** (`client/tests/sw.test.ts`, `sw-register.test.ts`): Caching policies, push events, client focus.
+- **Service Worker Tests** (`client/tests/sw.test.ts`, `sw-register.test.ts`): Caching policies, v2 cache cleanup, network-first navigation, push events, client focus.
 - **API & Presets Tests** (`server/tests/api.test.ts`, `server/tests/presets.test.ts`): All routes, cookie auth, custom presets validation, reset, SSE stream, push subscription pruning.
+- **Vercel Edge Proxy Tests** (`tests/vercel-proxy.test.ts`): Dynamic backend URL resolution, cookie header forwarding, error handling.
 - **Client Components & App** (`client/tests/components.test.tsx`, `app.test.tsx`, `manage-presets.test.tsx`, `i18n.test.ts`): React components, Thai/English dictionary parity, language toggle, presets modal, draft note preservation, SSE listeners.
 - **End-to-End Test Suites** (`tests/e2e.test.ts`, `tests/e2e-presets.test.ts`): Full partner interaction lifecycle, live SSE broadcasts, push notifications, default Thai presets ("คิดถึง" and "หิว"), custom preset addition, and unpairing.
 
@@ -233,3 +262,4 @@ bun run test
 ## License
 
 MIT (c) CoupleMood Team
+
