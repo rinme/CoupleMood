@@ -17,6 +17,11 @@ export function getClientDistPath(customPath?: string): string {
   if (customPath) return path.resolve(customPath);
   if (process.env.CLIENT_DIST) return path.resolve(process.env.CLIENT_DIST);
 
+  const rootDist = path.resolve(process.cwd(), 'dist');
+  if (fs.existsSync(rootDist)) {
+    return rootDist;
+  }
+
   const cwdDist = path.resolve(process.cwd(), 'client/dist');
   if (fs.existsSync(cwdDist)) {
     return cwdDist;

@@ -8,6 +8,9 @@
     "strict": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true
-  }
+    "resolveJsonModule": true,
+    "noEmit": true
+  },
+  "include": ["server/src", "api"],
+  "exclude": ["client", "node_modules", "dist", "tests", "server/tests"]
 }
