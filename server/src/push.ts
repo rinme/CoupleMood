@@ -1,5 +1,5 @@
 import webpush from 'web-push';
-import { getVapidKeys, getPushSubscriptions, deletePushSubscription } from './db.js';
+import { getVapidKeys, getVapidKeysSync, getPushSubscriptions, deletePushSubscription } from './db.js';
 
 export interface PushPayload {
   title: string;
@@ -16,8 +16,8 @@ let configuredPrivateKey: string | null = null;
 /**
  * Ensures web-push is configured with the latest VAPID details from DB/env.
  */
-export function ensureVapidConfig(): void {
-  const keys = getVapidKeys();
+export async function ensureVapidConfig(): Promise<void> {
+  const keys = await getVapidKeys();
   if (keys.publicKey !== configuredPublicKey || keys.privateKey !== configuredPrivateKey) {
     const subject = process.env.VAPID_SUBJECT || 'mailto:couplemood@example.com';
     webpush.setVapidDetails(subject, keys.publicKey, keys.privateKey);
@@ -38,9 +38,9 @@ export async function sendPushNotification(
     return { sent: 0, failed: 0 };
   }
 
-  ensureVapidConfig();
+  await ensureVapidConfig();
 
-  const subscriptions = getPushSubscriptions(userId);
+  const subscriptions = await getPushSubscriptions(userId);
   if (subscriptions.length === 0) {
     return { sent: 0, failed: 0 };
   }
@@ -67,7 +67,7 @@ export async function sendPushNotification(
         failed++;
         // Prune expired or invalid subscriptions
         if (err && (err.statusCode === 410 || err.statusCode === 404)) {
-          deletePushSubscription(sub.endpoint);
+          await deletePushSubscription(sub.endpoint, userId);
         }
       }
     })

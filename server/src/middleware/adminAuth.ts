@@ -13,7 +13,7 @@ declare global {
  * Authentication middleware verifying 'admin_session' HTTP-only cookie.
  * Returns 401 if missing, invalid, or expired.
  */
-export function requireAdminAuth(req: Request, res: Response, next: NextFunction): void {
+export async function requireAdminAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const token = req.cookies?.admin_session;
 
   if (!token) {
@@ -21,7 +21,7 @@ export function requireAdminAuth(req: Request, res: Response, next: NextFunction
     return;
   }
 
-  const isValid = verifyAdminSession(token);
+  const isValid = await verifyAdminSession(token);
   if (!isValid) {
     res.clearCookie('admin_session', { path: '/' });
     res.status(401).json({ error: 'Admin unauthorized' });

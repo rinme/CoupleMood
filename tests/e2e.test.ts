@@ -239,7 +239,7 @@ describe('CoupleMood End-to-End Verification & Production Integration', () => {
       expect(rawCookieString).toMatch(/mood_session=;/);
 
       // Check token in DB is removed
-      expect(getSession(tokenA)).toBeNull();
+      expect(await getSession(tokenA)).toBeNull();
 
       // Subsequent session check for Alice returns 401 Unauthorized
       const sessionAfterUnpairA = await request(app)

@@ -8,9 +8,9 @@ export const deviceLinkRouter = Router();
  * POST /api/auth/device-link/create
  * Authenticated endpoint generating a 6-digit OTP and QR link for device linking.
  */
-deviceLinkRouter.post('/create', requireAuth, (req, res) => {
+deviceLinkRouter.post('/create', requireAuth, async (req, res) => {
   try {
-    const { code, expiresAt } = createDeviceLinkOtp(req.user.id);
+    const { code, expires_at: expiresAt } = await createDeviceLinkOtp(req.user.id);
     const host = req.get('host') || 'localhost';
     const qrUrl = `${req.protocol}://${host}/link?code=${code}`;
 
@@ -28,7 +28,7 @@ deviceLinkRouter.post('/create', requireAuth, (req, res) => {
  * POST /api/auth/device-link/verify
  * Public endpoint verifying a 6-digit OTP and issuing a session cookie.
  */
-deviceLinkRouter.post('/verify', (req, res) => {
+deviceLinkRouter.post('/verify', async (req, res) => {
   const { code } = req.body ?? {};
 
   const rawCode = typeof code === 'number' ? String(code) : (typeof code === 'string' ? code.trim() : '');
@@ -40,7 +40,7 @@ deviceLinkRouter.post('/verify', (req, res) => {
 
   try {
     const userAgent = req.headers['user-agent'];
-    const result = verifyDeviceLinkOtp(rawCode, userAgent);
+    const result = await verifyDeviceLinkOtp(rawCode, userAgent);
 
     // 30 days expiration for session cookie
     const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -57,7 +57,7 @@ deviceLinkRouter.post('/verify', (req, res) => {
       partner: result.partner
     });
   } catch (err: any) {
-    recordOtpFailure(rawCode);
+    await recordOtpFailure(rawCode);
     const status = typeof err?.status === 'number' ? err.status : 400;
     res.status(status).json({ error: err?.message || 'Failed to verify code' });
   }

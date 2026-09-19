@@ -68,7 +68,7 @@ bun run dev
 
 ### Running the Full Test Suite
 
-Execute all 181 unit, integration, service worker, component, edge proxy, and end-to-end tests across 18 test suites:
+Execute all 209 unit, integration, service worker, component, edge proxy, and end-to-end tests across 20 test suites:
 ```bash
 bun run test
 # or
@@ -224,30 +224,32 @@ Mood Sender supports connecting your account to multiple devices simultaneously.
 
 ---
 
-## Deploying to Vercel
+## Deploying to Vercel with Upstash Redis
 
-CoupleMood is configured for one-click deployment on Vercel with an edge proxy architecture:
+CoupleMood is 100% serverless on Vercel with zero external server dependencies:
 - **Frontend PWA**: Hosted on Vercel's global edge CDN with preconfigured caching rules in `vercel.json`.
-- **Edge API Proxy (`api/[[...path]].ts`)**: An Edge Function transparently forwards `/api/*` requests to your persistent backend, preserving HTTP-only session cookies and real-time Server-Sent Events (SSE).
+- **Serverless API (`api/index.ts`)**: Serverless function running the Express API, automatically routed via `vercel.json` rewrites.
+- **Database**: Serverless Redis powered by [Upstash](https://upstash.com) (or Vercel KV).
 
-### Step 1: Deploy Persistent Backend
+### Step 1: Create an Upstash Redis Database
 
-Deploy the persistent backend container to Render, Railway, Fly.io, or your own VPS:
-
-- **Render (Blueprint)**: Connect your repository and select `render.yaml`. It deploys as a standard free web service with SQLite database stored in the container at `/app/data/mood.db`.
-- **Docker / VPS / Fly.io**: Build and run with `docker build -t couplemood . && docker run -p 3000:3000 -v couplemood-data:/app/data couplemood` for persistent volume storage.
-
-Note your backend service URL (e.g., `https://couplemood-backend.onrender.com`).
+1. Sign up or log into [Upstash](https://console.upstash.com) (or add the Upstash / Vercel KV integration directly in your Vercel project settings).
+2. Create a free serverless Redis database.
+3. In the database details, locate the **REST API** section and copy:
+   - `UPSTASH_REDIS_REST_URL`
+   - `UPSTASH_REDIS_REST_TOKEN`
 
 ### Step 2: Deploy to Vercel
 
 1. Push your repository to GitHub.
 2. In the Vercel Dashboard, click **Add New Project** and import **CoupleMood**.
-3. Vercel automatically detects the Vite framework and Bun build command (`bun run build`).
-4. Under **Environment Variables**, add:
-   - `BACKEND_URL`: Your persistent backend URL (e.g., `https://couplemood-backend.onrender.com`).
-5. Click **Deploy**.
-6. Your PWA will be live at `https://your-project.vercel.app` with instant global delivery, offline support, and synchronized real-time status.
+3. Under **Environment Variables**, add:
+   - `UPSTASH_REDIS_REST_URL`: Your Upstash REST URL (or use Vercel KV)
+   - `UPSTASH_REDIS_REST_TOKEN`: Your Upstash REST token
+   - `ADMIN_PASSWORD`: Secure password for the admin dashboard (defaults to `admin123` if omitted)
+   - *(Optional)* `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`: Custom Web Push credentials (auto-generated in Redis if omitted)
+4. Click **Deploy**.
+5. Your PWA will be live at `https://your-project.vercel.app` with instant global delivery, offline support, and serverless Redis persistence!
 
 ---
 

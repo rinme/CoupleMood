@@ -10,9 +10,9 @@ export const presetsRouter = Router();
  * Returns customized presets for the authenticated user, or defaults if none configured.
  * Query param: ?lang=th|en (defaults to 'th')
  */
-presetsRouter.get('/', requireAuth, (req: Request, res: Response) => {
-  const lang = typeof req.query.lang === 'string' ? req.query.lang : 'th';
-  const presets = getUserPresets(req.user.id, lang);
+presetsRouter.get('/', requireAuth, async (req: Request, res: Response) => {
+  const lang = (req.query.lang === 'en' ? 'en' : 'th') as 'th' | 'en';
+  const presets = await getUserPresets(req.user.id, lang);
   res.status(200).json({ presets });
 });
 
@@ -22,7 +22,7 @@ presetsRouter.get('/', requireAuth, (req: Request, res: Response) => {
  * Body: { presets: Array<{ emoji: string, label: string, colorTheme?: string, color_theme?: string }> }
  * Validates: 1-16 items, emoji non-empty, label non-empty and <= 30 chars.
  */
-presetsRouter.put('/', requireAuth, (req: Request, res: Response) => {
+presetsRouter.put('/', requireAuth, async (req: Request, res: Response) => {
   const presets = req.body?.presets;
 
   if (!Array.isArray(presets) || presets.length < 1 || presets.length > 16) {
@@ -55,7 +55,7 @@ presetsRouter.put('/', requireAuth, (req: Request, res: Response) => {
     }
   }
 
-  const updated = setUserPresets(req.user.id, presets);
+  const updated = await setUserPresets(req.user.id, presets);
   res.status(200).json({ presets: updated });
 });
 
@@ -64,10 +64,10 @@ presetsRouter.put('/', requireAuth, (req: Request, res: Response) => {
  * Resets user's custom presets and returns default presets.
  * Query param: ?lang=th|en (defaults to 'th')
  */
-presetsRouter.delete('/reset', requireAuth, (req: Request, res: Response) => {
-  const lang = typeof req.query.lang === 'string' ? req.query.lang : 'th';
-  resetUserPresets(req.user.id);
-  const presets = getUserPresets(req.user.id, lang);
+presetsRouter.delete('/reset', requireAuth, async (req: Request, res: Response) => {
+  const lang = (req.query.lang === 'en' ? 'en' : 'th') as 'th' | 'en';
+  await resetUserPresets(req.user.id, lang);
+  const presets = await getUserPresets(req.user.id, lang);
   res.status(200).json({
     message: 'Presets reset to default',
     presets

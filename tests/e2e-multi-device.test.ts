@@ -152,7 +152,7 @@ describe('Multi-Device OTP & QR Account Linking E2E', () => {
       expect(sessionDevice3After.status).toBe(401);
 
       // Verify Device 3 session token is deleted from DB
-      expect(getSession(tokenDevice3)).toBeNull();
+      expect(await getSession(tokenDevice3)).toBeNull();
 
       // Verify Device 1 (Alice's phone) remains fully authenticated
       const sessionDevice1 = await request(app)
@@ -178,7 +178,7 @@ describe('Multi-Device OTP & QR Account Linking E2E', () => {
       expect(unpairDevice1.status).toBe(200);
 
       // Step 11: Verify Device 1 session is deleted
-      expect(getSession(tokenDevice1)).toBeNull();
+      expect(await getSession(tokenDevice1)).toBeNull();
 
       const sessionDevice1After = await request(app)
         .get('/api/auth/session')
@@ -221,12 +221,14 @@ describe('Multi-Device OTP & QR Account Linking E2E', () => {
 
       const otpCode = createOtp.body.code;
 
-      // Manually expire the OTP by updating the database
+      // Manually expire the OTP by updating the store
       const { getDb } = await import('../server/src/db.js');
-      const db = getDb();
-      db.prepare(
-        'UPDATE device_link_otps SET expires_at = ? WHERE code = ?'
-      ).run(new Date(Date.now() - 60000).toISOString(), otpCode);
+      const redis = getDb();
+      const otp = await redis.get<any>(`otps:${otpCode}`);
+      if (otp) {
+        otp.expires_at = new Date(Date.now() - 60000).toISOString();
+        await redis.set(`otps:${otpCode}`, otp);
+      }
 
       // Attempt to verify expired OTP
       const res = await request(app)
@@ -252,12 +254,14 @@ describe('Multi-Device OTP & QR Account Linking E2E', () => {
 
       expect(createOtp.body.code).toMatch(/^\d{6}$/);
 
-      // Manually set failed_attempts to 5 in the database
+      // Manually set failed_attempts to 5 in the store
       const { getDb } = await import('../server/src/db.js');
-      const db = getDb();
-      db.prepare(
-        'UPDATE device_link_otps SET failed_attempts = 5 WHERE code = ?'
-      ).run(createOtp.body.code);
+      const redis = getDb();
+      const otp = await redis.get<any>(`otps:${createOtp.body.code}`);
+      if (otp) {
+        otp.failed_attempts = 5;
+        await redis.set(`otps:${createOtp.body.code}`, otp);
+      }
 
       // Attempt to verify should return 429
       const res = await request(app)

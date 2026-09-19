@@ -13,9 +13,9 @@ moodRouter.use(requireAuth);
  * GET /api/mood
  * Returns the current user's mood, partner's mood, and partner info.
  */
-moodRouter.get('/', (req, res) => {
-  const myMood = getMood(req.user.id);
-  const partnerMood = req.partner ? getMood(req.partner.id) : null;
+moodRouter.get('/', async (req, res) => {
+  const myMood = await getMood(req.user.id);
+  const partnerMood = req.partner ? await getMood(req.partner.id) : null;
 
   res.status(200).json({
     myMood,
@@ -52,7 +52,7 @@ moodRouter.post('/', async (req, res) => {
   }
 
   try {
-    const updatedMood = setMood(
+    const updatedMood = await setMood(
       req.user.id,
       emoji.trim(),
       label.trim(),
@@ -102,7 +102,7 @@ moodRouter.post('/', async (req, res) => {
  */
 moodRouter.delete('/', async (req, res) => {
   try {
-    deleteMood(req.user.id);
+    await deleteMood(req.user.id);
 
     const event = {
       type: 'mood_cleared',

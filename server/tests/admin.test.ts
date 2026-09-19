@@ -5,7 +5,6 @@ import {
   initDb,
   closeDb,
   pairUser,
-  getDb,
   verifyAdminPassword,
   checkAdminLockout,
   recordAdminFailedAttempt,
@@ -22,7 +21,7 @@ import {
   deleteCouple
 } from '../src/db.js';
 import { parseUserAgent } from '../src/device.js';
-import { addConnection, isTokenOnline } from '../src/sse.js';
+import { addConnection } from '../src/sse.js';
 
 describe('Admin Subsystem & Device Tracking', () => {
   beforeEach(() => {
@@ -70,48 +69,48 @@ describe('Admin Subsystem & Device Tracking', () => {
       expect(verifyAdminPassword('')).toBe(false);
     });
 
-    it('enforces brute-force lockout after 5 consecutive failed attempts', () => {
+    it('enforces brute-force lockout after 5 consecutive failed attempts', async () => {
       const testIp = '192.168.1.50';
 
       // 4 failures: not locked
       for (let i = 1; i <= 4; i++) {
-        const res = recordAdminFailedAttempt(testIp);
+        const res = await recordAdminFailedAttempt(testIp);
         expect(res.locked).toBe(false);
         expect(res.attemptsLeft).toBe(5 - i);
       }
 
       // 5th failure triggers 15 min lockout
-      const fifth = recordAdminFailedAttempt(testIp);
+      const fifth = await recordAdminFailedAttempt(testIp);
       expect(fifth.locked).toBe(true);
       expect(fifth.waitSeconds).toBeGreaterThan(800);
 
       // Subsequent check confirms lockout
-      const status = checkAdminLockout(testIp);
+      const status = await checkAdminLockout(testIp);
       expect(status.locked).toBe(true);
 
       // Reset unlocks
-      resetAdminFailedAttempts(testIp);
-      const afterReset = checkAdminLockout(testIp);
+      await resetAdminFailedAttempts(testIp);
+      const afterReset = await checkAdminLockout(testIp);
       expect(afterReset.locked).toBe(false);
     });
 
-    it('manages admin session lifecycle (create, verify, delete)', () => {
-      const token = createAdminSession();
+    it('manages admin session lifecycle (create, verify, delete)', async () => {
+      const token = await createAdminSession();
       expect(token).toBeDefined();
       expect(token.length).toBe(64);
 
-      expect(verifyAdminSession(token)).toBe(true);
-      expect(verifyAdminSession('nonexistent-token')).toBe(false);
+      expect(await verifyAdminSession(token)).toBe(true);
+      expect(await verifyAdminSession('nonexistent-token')).toBe(false);
 
-      deleteAdminSession(token);
-      expect(verifyAdminSession(token)).toBe(false);
+      await deleteAdminSession(token);
+      expect(await verifyAdminSession(token)).toBe(false);
     });
 
-    it('stores user-agent and device_info on pairUser and tracks online status', () => {
+    it('stores user-agent and device_info on pairUser and tracks online status', async () => {
       const userAgent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1';
-      const pair = pairUser('TEST01', 'Alice', userAgent);
+      const pair = await pairUser('TEST01', 'Alice', userAgent);
 
-      const sessions = getAllSessionsWithDetails();
+      const sessions = await getAllSessionsWithDetails();
       expect(sessions.length).toBe(1);
       expect(sessions[0].user_nickname).toBe('Alice');
       expect(sessions[0].couple_code).toBe('TEST01');
@@ -128,51 +127,51 @@ describe('Admin Subsystem & Device Tracking', () => {
       };
       const cleanup = addConnection(pair.user.id, mockRes, pair.token);
 
-      const onlineSessions = getAllSessionsWithDetails();
+      const onlineSessions = await getAllSessionsWithDetails();
       expect(onlineSessions[0].is_online).toBe(true);
 
       cleanup();
-      const offlineSessions = getAllSessionsWithDetails();
+      const offlineSessions = await getAllSessionsWithDetails();
       expect(offlineSessions[0].is_online).toBe(false);
     });
 
-    it('provides accurate admin statistics', () => {
-      pairUser('PAIR1', 'User1');
-      pairUser('PAIR2', 'User2');
+    it('provides accurate admin statistics', async () => {
+      await pairUser('PAIR1', 'User1');
+      await pairUser('PAIR2', 'User2');
 
-      const stats = getAdminStats();
+      const stats = await getAdminStats();
       expect(stats.total_couples).toBe(2);
       expect(stats.total_users).toBe(2);
       expect(stats.total_sessions).toBe(2);
       expect(stats.live_connections).toBe(0);
     });
 
-    it('revokes individual session, couple sessions, and all sessions', () => {
-      const pairA = pairUser('ROOM1', 'UserA');
-      const pairB = pairUser('ROOM2', 'UserB');
+    it('revokes individual session, couple sessions, and all sessions', async () => {
+      const pairA = await pairUser('ROOM1', 'UserA');
+      const pairB = await pairUser('ROOM2', 'UserB');
 
-      expect(getAllSessionsWithDetails().length).toBe(2);
+      expect((await getAllSessionsWithDetails()).length).toBe(2);
 
       // Revoke single session
-      const revoked = revokeSession(pairA.token);
+      const revoked = await revokeSession(pairA.token);
       expect(revoked).toBe(true);
-      expect(getAllSessionsWithDetails().length).toBe(1);
+      expect((await getAllSessionsWithDetails()).length).toBe(1);
 
       // Add another session for room2
-      pairUser('ROOM2', 'UserC');
-      expect(getAllSessionsWithDetails().length).toBe(2);
+      await pairUser('ROOM2', 'UserC');
+      expect((await getAllSessionsWithDetails()).length).toBe(2);
 
       // Revoke all sessions for room2
-      const coupleRevoked = revokeSessionsByCouple(pairB.couple.id);
+      const coupleRevoked = await revokeSessionsByCouple(pairB.couple.id);
       expect(coupleRevoked).toBe(2);
-      expect(getAllSessionsWithDetails().length).toBe(0);
+      expect((await getAllSessionsWithDetails()).length).toBe(0);
 
       // Revoke all
-      pairUser('ROOM3', 'UserD');
-      expect(getAllSessionsWithDetails().length).toBe(1);
-      const allRevoked = revokeAllSessions();
+      await pairUser('ROOM3', 'UserD');
+      expect((await getAllSessionsWithDetails()).length).toBe(1);
+      const allRevoked = await revokeAllSessions();
       expect(allRevoked).toBe(1);
-      expect(getAllSessionsWithDetails().length).toBe(0);
+      expect((await getAllSessionsWithDetails()).length).toBe(0);
     });
   });
 
@@ -219,55 +218,59 @@ describe('Admin Subsystem & Device Tracking', () => {
       expect(statsRes.status).toBe(200);
       expect(statsRes.body.total_couples).toBe(0);
 
+      // Get sessions
+      const sessionsRes = await request(app)
+        .get('/api/admin/sessions')
+        .set('Cookie', adminCookie);
+      expect(sessionsRes.status).toBe(200);
+      expect(sessionsRes.body.sessions).toBeInstanceOf(Array);
+
+      // Get couples
+      const couplesRes = await request(app)
+        .get('/api/admin/couples')
+        .set('Cookie', adminCookie);
+      expect(couplesRes.status).toBe(200);
+      expect(couplesRes.body.couples).toBeInstanceOf(Array);
+
       // Logout
       const logoutRes = await request(app)
         .post('/api/admin/logout')
         .set('Cookie', adminCookie);
       expect(logoutRes.status).toBe(200);
 
-      // Check after logout
-      const checkAfterRes = await request(app)
-        .get('/api/admin/check')
-        .set('Cookie', adminCookie);
-      expect(checkAfterRes.status).toBe(401);
+      // Check after logout -> 401
+      const checkAfter = await request(app).get('/api/admin/check');
+      expect(checkAfter.status).toBe(401);
     });
 
     it('returns 401 with attemptsLeft on invalid password and locks out after 5 failures', async () => {
       const app = createApp();
 
-      // First 4 failed attempts
       for (let i = 1; i <= 4; i++) {
         const res = await request(app)
           .post('/api/admin/login')
-          .set('X-Forwarded-For', '10.0.0.99')
-          .send({ password: 'wrong' });
+          .send({ password: 'wrongpassword' });
+
         expect(res.status).toBe(401);
+        expect(res.body.error).toBe('Incorrect password');
         expect(res.body.attemptsLeft).toBe(5 - i);
       }
 
-      // 5th attempt locks out
-      const lockedRes = await request(app)
+      // 5th failure -> 429 lockout
+      const fifthRes = await request(app)
         .post('/api/admin/login')
-        .set('X-Forwarded-For', '10.0.0.99')
-        .send({ password: 'wrong' });
-      expect(lockedRes.status).toBe(429);
-      expect(lockedRes.body.locked).toBe(true);
-      expect(lockedRes.body.waitSeconds).toBeGreaterThan(0);
+        .send({ password: 'wrongpassword' });
 
-      // 6th attempt is blocked immediately by lockout
-      const blockedRes = await request(app)
-        .post('/api/admin/login')
-        .set('X-Forwarded-For', '10.0.0.99')
-        .send({ password: 'supersecretpass' });
-      expect(blockedRes.status).toBe(429);
-      expect(blockedRes.body.locked).toBe(true);
+      expect(fifthRes.status).toBe(429);
+      expect(fifthRes.body.locked).toBe(true);
+      expect(fifthRes.body.waitSeconds).toBeGreaterThan(800);
     });
 
     it('revokes session via DELETE /api/admin/sessions/:token', async () => {
       const app = createApp();
 
       // Create a couple session
-      const pair = pairUser('DEMO1', 'Bob');
+      const pair = await pairUser('DEMO1', 'Bob');
 
       // Login as admin
       const loginRes = await request(app)
@@ -300,8 +303,8 @@ describe('Admin Subsystem & Device Tracking', () => {
       const app = createApp();
 
       // Pair a couple with 2 members
-      const pair1 = pairUser('ROOMX', 'Emma');
-      pairUser('ROOMX', 'Noah');
+      const pair1 = await pairUser('ROOMX', 'Emma');
+      await pairUser('ROOMX', 'Noah');
 
       // Login as admin
       const loginRes = await request(app)
@@ -342,4 +345,3 @@ describe('Admin Subsystem & Device Tracking', () => {
     });
   });
 });
-

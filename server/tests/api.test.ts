@@ -3,6 +3,7 @@ import request from 'supertest';
 import webpush from 'web-push';
 import { createApp } from '../src/app.js';
 import { initDb, closeDb, getDb, getSession, getPushSubscriptions } from '../src/db.js';
+import { getRedis } from '../src/redis.js';
 import { closeAllConnections } from '../src/sse.js';
 import type { Express } from 'express';
 
@@ -139,8 +140,15 @@ describe('Backend API Routes, SSE & Web Push Integration', () => {
       const cookie = pairRes.headers['set-cookie'];
 
       // Manually expire session in DB
-      const db = getDb();
-      db.prepare("UPDATE sessions SET expires_at = datetime('now', '-1 hour')").run();
+      const redis = getRedis();
+      const sessionKeys = await redis.keys('sessions:*');
+      for (const k of sessionKeys) {
+        const s = await redis.get<any>(k);
+        if (s) {
+          s.expires_at = new Date(Date.now() - 3600 * 1000).toISOString();
+          await redis.set(k, s);
+        }
+      }
 
       const res = await request(app)
         .get('/api/auth/session')
@@ -212,7 +220,7 @@ describe('Backend API Routes, SSE & Web Push Integration', () => {
       expect(res.body.success).toBe(true);
 
       // Verify in DB
-      const subs = getPushSubscriptions(pairRes.body.user.id);
+      const subs = await getPushSubscriptions(pairRes.body.user.id);
       expect(subs.length).toBe(1);
       expect(subs[0].endpoint).toBe('https://fcm.googleapis.com/fcm/send/test-alice');
       expect(subs[0].p256dh).toBe('p256dh-key-alice');
@@ -239,7 +247,7 @@ describe('Backend API Routes, SSE & Web Push Integration', () => {
 
       expect(unsubRes.status).toBe(200);
 
-      const subs = getPushSubscriptions(pairRes.body.user.id);
+      const subs = await getPushSubscriptions(pairRes.body.user.id);
       expect(subs.length).toBe(0);
     });
   });
@@ -428,7 +436,7 @@ describe('Backend API Routes, SSE & Web Push Integration', () => {
           keys: { p256dh: 'k3', auth: 'k4' }
         });
 
-      expect(getPushSubscriptions(u2Res.body.user.id).length).toBe(2);
+      expect((await getPushSubscriptions(u2Res.body.user.id)).length).toBe(2);
 
       // Mock webpush: 410 for expired-410, 201 for valid-sub
       vi.spyOn(webpush, 'sendNotification').mockImplementation(async (sub: any) => {
@@ -449,7 +457,7 @@ describe('Backend API Routes, SSE & Web Push Integration', () => {
       expect(res.status).toBe(200);
 
       // Verify the 410 subscription was pruned, valid subscription remains
-      const remainingSubs = getPushSubscriptions(u2Res.body.user.id);
+      const remainingSubs = await getPushSubscriptions(u2Res.body.user.id);
       expect(remainingSubs.length).toBe(1);
       expect(remainingSubs[0].endpoint).toBe('https://push.example.com/valid-sub');
     });
@@ -530,24 +538,22 @@ describe('Backend API Routes, SSE & Web Push Integration', () => {
   });
 
   describe('6. Deferred Task 1: NaN Session Expiration Protection', () => {
-    it('safely deletes session and returns null if expires_at is NaN or invalid date', () => {
-      const db = getDb();
-      db.prepare(
-        "INSERT INTO couples (id, code) VALUES ('c1', 'NAN-TEST')"
-      ).run();
-      db.prepare(
-        "INSERT INTO users (id, couple_id, nickname, slot) VALUES ('u1', 'c1', 'Alice', 1)"
-      ).run();
-      db.prepare(
-        "INSERT INTO sessions (token, user_id, expires_at) VALUES ('invalid-date-token', 'u1', 'invalid-date-string')"
-      ).run();
+    it('safely deletes session and returns null if expires_at is NaN or invalid date', async () => {
+      const redis = getDb();
+      await redis.set('couples:NAN-TEST', { id: 'c1', code: 'NAN-TEST' });
+      await redis.set('couple_by_id:c1', 'NAN-TEST');
+      await redis.set('users:u1', { id: 'u1', couple_id: 'c1', nickname: 'Alice', slot: 1 });
+      await redis.set('sessions:invalid-date-token', {
+        token: 'invalid-date-token',
+        user_id: 'u1',
+        expires_at: 'invalid-date-string'
+      });
 
-      const session = getSession('invalid-date-token');
+      const session = await getSession('invalid-date-token');
       expect(session).toBeNull();
 
-      // Ensure invalid row was purged
-      const row = db.prepare("SELECT * FROM sessions WHERE token = 'invalid-date-token'").get();
-      expect(row).toBeUndefined();
+      const exists = await redis.get('sessions:invalid-date-token');
+      expect(exists).toBeNull();
     });
   });
 

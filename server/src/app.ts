@@ -1,7 +1,6 @@
 import express from 'express';
 import type { Express } from 'express';
 import cookieParser from 'cookie-parser';
-import type { Database } from 'better-sqlite3';
 import { setDb } from './db.js';
 import { authRouter } from './routes/auth.js';
 import { deviceLinkRouter } from './routes/device-link.js';
@@ -14,7 +13,7 @@ import { adminRouter } from './routes/admin.js';
 /**
  * Creates and configures the Express application.
  */
-export function createApp(db?: Database): Express {
+export function createApp(db?: any): Express {
   if (db) {
     setDb(db);
   }
@@ -41,4 +40,5 @@ export function createApp(db?: Database): Express {
   return app;
 }
 
-export default createApp;
+export const app = createApp();
+export default app;

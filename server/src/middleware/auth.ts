@@ -17,7 +17,7 @@ declare global {
  * Authentication middleware verifying 'mood_session' HTTP-only cookie.
  * Attaches user, couple, and partner to Request if valid, returns 401 otherwise.
  */
-export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const token = req.cookies?.mood_session;
 
   if (!token) {
@@ -25,7 +25,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     return;
   }
 
-  const session = getSession(token);
+  const session = await getSession(token);
   if (!session) {
     res.clearCookie('mood_session', { path: '/' });
     res.status(401).json({ error: 'Unauthorized' });

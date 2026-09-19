@@ -8,8 +8,8 @@ export const pushRouter = Router();
  * GET /api/push/key
  * Returns the public VAPID key for browser subscription.
  */
-pushRouter.get('/key', (_req, res) => {
-  const keys = getVapidKeys();
+pushRouter.get('/key', async (_req, res) => {
+  const keys = await getVapidKeys();
   res.status(200).json({ publicKey: keys.publicKey });
 });
 
@@ -17,7 +17,7 @@ pushRouter.get('/key', (_req, res) => {
  * POST /api/push/subscribe
  * Registers or updates a push subscription for the authenticated user.
  */
-pushRouter.post('/subscribe', requireAuth, (req, res) => {
+pushRouter.post('/subscribe', requireAuth, async (req, res) => {
   const { endpoint, keys } = req.body ?? {};
 
   if (!endpoint || typeof endpoint !== 'string') {
@@ -31,7 +31,7 @@ pushRouter.post('/subscribe', requireAuth, (req, res) => {
   }
 
   try {
-    savePushSubscription(req.user.id, endpoint, keys.p256dh, keys.auth);
+    await savePushSubscription(req.user.id, endpoint, keys.p256dh, keys.auth);
     res.status(200).json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err?.message || 'Failed to save push subscription' });
@@ -42,7 +42,7 @@ pushRouter.post('/subscribe', requireAuth, (req, res) => {
  * POST /api/push/unsubscribe
  * Removes a push subscription for the authenticated user.
  */
-pushRouter.post('/unsubscribe', requireAuth, (req, res) => {
+pushRouter.post('/unsubscribe', requireAuth, async (req, res) => {
   const { endpoint } = req.body ?? {};
 
   if (!endpoint || typeof endpoint !== 'string') {
@@ -51,7 +51,7 @@ pushRouter.post('/unsubscribe', requireAuth, (req, res) => {
   }
 
   try {
-    deletePushSubscription(endpoint, req.user.id);
+    await deletePushSubscription(endpoint, req.user.id);
     res.status(200).json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err?.message || 'Failed to remove push subscription' });

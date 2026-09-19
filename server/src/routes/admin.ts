@@ -33,12 +33,12 @@ function getClientIp(req: any): string {
  * POST /api/admin/login
  * Validates admin password, handles brute-force lockout, and issues an HTTP-only admin_session cookie.
  */
-adminRouter.post('/login', (req, res) => {
+adminRouter.post('/login', async (req, res) => {
   const ip = getClientIp(req);
   const { password } = req.body ?? {};
 
   // Check if IP is currently locked out
-  const lockoutStatus = checkAdminLockout(ip);
+  const lockoutStatus = await checkAdminLockout(ip);
   if (lockoutStatus.locked) {
     res.status(429).json({
       error: 'Too many failed login attempts. Locked out for 15 minutes.',
@@ -55,7 +55,7 @@ adminRouter.post('/login', (req, res) => {
 
   const isValid = verifyAdminPassword(password);
   if (!isValid) {
-    const attempt = recordAdminFailedAttempt(ip);
+    const attempt = await recordAdminFailedAttempt(ip);
     if (attempt.locked) {
       res.status(429).json({
         error: 'Too many failed login attempts. Locked out for 15 minutes.',
@@ -73,10 +73,10 @@ adminRouter.post('/login', (req, res) => {
   }
 
   // Password correct: reset failed attempts counter for this IP
-  resetAdminFailedAttempts(ip);
+  await resetAdminFailedAttempts(ip);
 
   // Issue admin session token (24h validity)
-  const token = createAdminSession();
+  const token = await createAdminSession();
   const ONE_DAY_MS = 24 * 60 * 60 * 1000;
   res.cookie('admin_session', token, {
     httpOnly: true,
@@ -92,10 +92,10 @@ adminRouter.post('/login', (req, res) => {
  * POST /api/admin/logout
  * Destroys the admin session and clears the admin_session cookie.
  */
-adminRouter.post('/logout', (req, res) => {
+adminRouter.post('/logout', async (req, res) => {
   const token = req.cookies?.admin_session;
   if (token) {
-    deleteAdminSession(token);
+    await deleteAdminSession(token);
   }
 
   res.clearCookie('admin_session', { path: '/' });
@@ -114,8 +114,8 @@ adminRouter.get('/check', requireAdminAuth, (_req, res) => {
  * GET /api/admin/stats
  * Overview metrics: couples, users, sessions, and live SSE connections.
  */
-adminRouter.get('/stats', requireAdminAuth, (_req, res) => {
-  const stats = getAdminStats();
+adminRouter.get('/stats', requireAdminAuth, async (_req, res) => {
+  const stats = await getAdminStats();
   res.status(200).json(stats);
 });
 
@@ -123,8 +123,8 @@ adminRouter.get('/stats', requireAdminAuth, (_req, res) => {
  * GET /api/admin/sessions
  * List of all current sessions with parsed device, user, couple, and real-time status.
  */
-adminRouter.get('/sessions', requireAdminAuth, (_req, res) => {
-  const sessions = getAllSessionsWithDetails();
+adminRouter.get('/sessions', requireAdminAuth, async (_req, res) => {
+  const sessions = await getAllSessionsWithDetails();
   res.status(200).json({ sessions });
 });
 
@@ -132,9 +132,9 @@ adminRouter.get('/sessions', requireAdminAuth, (_req, res) => {
  * DELETE /api/admin/sessions/:token
  * Revokes a specific session token and terminates any active SSE connection.
  */
-adminRouter.delete('/sessions/:token', requireAdminAuth, (req, res) => {
+adminRouter.delete('/sessions/:token', requireAdminAuth, async (req, res) => {
   const { token } = req.params;
-  const revoked = revokeSession(token);
+  const revoked = await revokeSession(token);
   res.status(200).json({ success: revoked, token });
 });
 
@@ -142,9 +142,9 @@ adminRouter.delete('/sessions/:token', requireAdminAuth, (req, res) => {
  * DELETE /api/admin/couples/:coupleId/sessions
  * Revokes all sessions belonging to users in a couple.
  */
-adminRouter.delete('/couples/:coupleId/sessions', requireAdminAuth, (req, res) => {
+adminRouter.delete('/couples/:coupleId/sessions', requireAdminAuth, async (req, res) => {
   const { coupleId } = req.params;
-  const count = revokeSessionsByCouple(coupleId);
+  const count = await revokeSessionsByCouple(coupleId);
   res.status(200).json({ success: true, revokedCount: count });
 });
 
@@ -152,8 +152,8 @@ adminRouter.delete('/couples/:coupleId/sessions', requireAdminAuth, (req, res) =
  * GET /api/admin/couples
  * List of all couple rooms with member nicknames, slots, current moods, and active session counts.
  */
-adminRouter.get('/couples', requireAdminAuth, (_req, res) => {
-  const couples = getAllCouplesWithDetails();
+adminRouter.get('/couples', requireAdminAuth, async (_req, res) => {
+  const couples = await getAllCouplesWithDetails();
   res.status(200).json({ couples });
 });
 
@@ -161,9 +161,9 @@ adminRouter.get('/couples', requireAdminAuth, (_req, res) => {
  * DELETE /api/admin/couples/:coupleId
  * Permanently deletes a couple room and cascades to all users, sessions, moods, presets, and tokens.
  */
-adminRouter.delete('/couples/:coupleId', requireAdminAuth, (req, res) => {
+adminRouter.delete('/couples/:coupleId', requireAdminAuth, async (req, res) => {
   const { coupleId } = req.params;
-  const deleted = deleteCouple(coupleId);
+  const deleted = await deleteCouple(coupleId);
   res.status(200).json({ success: deleted, coupleId });
 });
 
@@ -171,7 +171,7 @@ adminRouter.delete('/couples/:coupleId', requireAdminAuth, (req, res) => {
  * DELETE /api/admin/sessions
  * Purges ALL sessions system-wide.
  */
-adminRouter.delete('/sessions', requireAdminAuth, (_req, res) => {
-  const count = revokeAllSessions();
+adminRouter.delete('/sessions', requireAdminAuth, async (_req, res) => {
+  const count = await revokeAllSessions();
   res.status(200).json({ success: true, revokedCount: count });
 });

@@ -381,56 +381,61 @@ describe('Custom Mood Presets API & DB (/api/presets)', () => {
       expect(aliceGet.body.presets[0].label).toBe('Alice Mood');
     });
 
-    it('DB helpers unit test: setUserPresets, getUserPresets, resetUserPresets', () => {
-      const db = getDb();
-      db.prepare("INSERT INTO couples (id, code) VALUES ('c1', 'UNIT-1')").run();
-      db.prepare("INSERT INTO users (id, couple_id, nickname, slot) VALUES ('u1', 'c1', 'Alice', 1)").run();
+    it('DB helpers unit test: setUserPresets, getUserPresets, resetUserPresets', async () => {
+      const redis = getDb();
+      await redis.set("couples:UNIT-1", { id: 'c1', code: 'UNIT-1' });
+      await redis.set("couple_by_id:c1", 'UNIT-1');
+      await redis.set("users:u1", { id: 'u1', couple_id: 'c1', nickname: 'Alice', slot: 1 });
 
       // Defaults
-      const defaults = getUserPresets('u1');
+      const defaults = await getUserPresets('u1');
       expect(defaults.length).toBe(7);
       expect(defaults[0].label).toBe('คิดถึง');
 
-      const defaultsEn = getUserPresets('u1', 'en');
+      const defaultsEn = await getUserPresets('u1', 'en');
       expect(defaultsEn.length).toBe(7);
       expect(defaultsEn[0].label).toBe('Missing you');
 
       // Set custom
-      const saved = setUserPresets('u1', [
-        { emoji: '🚀', label: 'Fast', colorTheme: 'indigo' }
+      const saved = await setUserPresets('u1', [
+        { emoji: '🚀', label: 'Fast', color_theme: 'indigo' }
       ]);
       expect(saved.length).toBe(1);
       expect(saved[0].emoji).toBe('🚀');
       expect(saved[0].label).toBe('Fast');
 
       // Get custom
-      const fetched = getUserPresets('u1');
+      const fetched = await getUserPresets('u1');
       expect(fetched.length).toBe(1);
       expect(fetched[0].label).toBe('Fast');
 
       // Reset
-      resetUserPresets('u1');
-      const afterReset = getUserPresets('u1');
+      await resetUserPresets('u1');
+      const afterReset = await getUserPresets('u1');
       expect(afterReset.length).toBe(7);
       expect(afterReset[0].label).toBe('คิดถึง');
     });
 
-    it('cascade deletes user_presets when user is deleted', () => {
-      const db = getDb();
-      db.prepare("INSERT INTO couples (id, code) VALUES ('c2', 'CASCADE-1')").run();
-      db.prepare("INSERT INTO users (id, couple_id, nickname, slot) VALUES ('u2', 'c2', 'Alice', 1)").run();
+    it('cascade deletes user_presets when couple is deleted', async () => {
+      const redis = getDb();
+      await redis.set("couples:CASCADE-1", { id: 'c2', code: 'CASCADE-1' });
+      await redis.set("couple_by_id:c2", 'CASCADE-1');
+      await redis.sadd('all_couples', 'c2');
+      await redis.set("users:u2", { id: 'u2', couple_id: 'c2', nickname: 'Alice', slot: 1 });
+      await redis.sadd('couple_users:c2', 'u2');
 
-      setUserPresets('u2', [
-        { emoji: '🎉', label: 'Party', colorTheme: 'amber' }
+      await setUserPresets('u2', [
+        { emoji: '🎉', label: 'Party', color_theme: 'amber' }
       ]);
 
-      const countBefore = db.prepare('SELECT count(*) as c FROM user_presets WHERE user_id = ?').get('u2') as { c: number };
-      expect(countBefore.c).toBe(1);
+      const presetsBefore = await getUserPresets('u2');
+      expect(presetsBefore.length).toBe(1);
 
-      db.prepare('DELETE FROM users WHERE id = ?').run('u2');
+      const { deleteCouple } = await import('../src/db.js');
+      await deleteCouple('c2');
 
-      const countAfter = db.prepare('SELECT count(*) as c FROM user_presets WHERE user_id = ?').get('u2') as { c: number };
-      expect(countAfter.c).toBe(0);
+      const presetsAfter = await redis.get('presets:u2');
+      expect(presetsAfter).toBeNull();
     });
   });
 });
