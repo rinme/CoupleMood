@@ -33,6 +33,12 @@ export interface SessionResponse {
   partner: Partner | null;
 }
 
+export interface DeviceLinkCreateResponse {
+  code: string;
+  expiresAt: string;
+  qrUrl: string;
+}
+
 export interface MoodResponse {
   myMood: Mood | null;
   partnerMood: Mood | null;

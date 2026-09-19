@@ -33,11 +33,16 @@ export interface TranslationSchema {
     unpairDesc: string;
     unpairButton: string;
     unpairing: string;
+    linkNewDevice: string;
+    logoutThisDevice: string;
+    loggingOut: string;
     language: string;
   };
   pairing: {
     title: string;
     tagline: string;
+    tabPair: string;
+    tabLinkDevice: string;
     coupleCodeLabel: string;
     generateRandom: string;
     codePlaceholder: string;
@@ -47,11 +52,33 @@ export interface TranslationSchema {
     nicknameHelp: string;
     enterRoom: string;
     entering: string;
+    otpPlaceholder: string;
+    connectDevice: string;
+    scanningQr: string;
     errorEmptyCode: string;
     errorEmptyNickname: string;
     errorRoomFull: string;
     errorDefault: string;
     errorNetwork: string;
+    errorInvalidOtp: string;
+    errorExpiredOtp: string;
+    errorLockoutOtp: string;
+  };
+  deviceLink: {
+    modalTitle: string;
+    modalSubtitle: string;
+    codeLabel: string;
+    copyCode: string;
+    copied: string;
+    expiresIn: string;
+    expired: string;
+    generateNew: string;
+    scanHelp: string;
+    scanWithCamera: string;
+    cameraTitle: string;
+    closeCamera: string;
+    cameraPermError: string;
+    connectedSuccess: string;
   };
   partnerCard: {
     waitingTitle: string;

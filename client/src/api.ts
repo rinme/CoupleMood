@@ -1,6 +1,7 @@
 import {
   PairRequest,
   SessionResponse,
+  DeviceLinkCreateResponse,
   MoodResponse,
   SetMoodRequest,
   Mood,
@@ -68,6 +69,25 @@ export const api = {
 
     async unpair(): Promise<{ success: boolean }> {
       return fetchApi<{ success: boolean }>('/api/auth/unpair', {
+        method: 'POST',
+      });
+    },
+
+    async createDeviceLink(): Promise<DeviceLinkCreateResponse> {
+      return fetchApi<DeviceLinkCreateResponse>('/api/auth/device-link/create', {
+        method: 'POST',
+      });
+    },
+
+    async verifyDeviceLink(code: string): Promise<SessionResponse> {
+      return fetchApi<SessionResponse>('/api/auth/device-link/verify', {
+        method: 'POST',
+        body: JSON.stringify({ code }),
+      });
+    },
+
+    async logout(): Promise<void> {
+      return fetchApi<void>('/api/auth/logout', {
         method: 'POST',
       });
     },
