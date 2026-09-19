@@ -360,6 +360,7 @@ export async function setMood(
 ): Promise<Mood> {
   const redis = getRedis();
   const mood: Mood = {
+    user_id: userId,
     emoji,
     label,
     note: note ?? null,

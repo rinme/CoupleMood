@@ -132,3 +132,20 @@ export interface DeviceLinkOtp {
   created_at?: string;
 }
 
+export type PushSubscription = PushSubscriptionRecord;
+
+export interface SessionWithUser {
+  user: User;
+  couple: Couple;
+  partner: User | null;
+  session: Session;
+}
+
+export interface UserPresetInput {
+  emoji: string;
+  label: string;
+  color_theme?: string;
+  colorTheme?: string;
+  sort_order?: number;
+}
+
