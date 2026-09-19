@@ -202,8 +202,8 @@ CoupleMood is configured for one-click deployment on Vercel with an edge proxy a
 
 Deploy the persistent backend container to Render, Railway, Fly.io, or your own VPS:
 
-- **Render (Blueprint)**: Connect your repository and select `render.yaml`. It automatically provisions a persistent disk at `/app/data` to preserve your SQLite database.
-- **Docker**: Build and run with `docker build -t couplemood . && docker run -p 3000:3000 -v couplemood-data:/app/data couplemood`.
+- **Render (Blueprint)**: Connect your repository and select `render.yaml`. It deploys as a standard free web service with SQLite database stored in the container at `/app/data/mood.db`.
+- **Docker / VPS / Fly.io**: Build and run with `docker build -t couplemood . && docker run -p 3000:3000 -v couplemood-data:/app/data couplemood` for persistent volume storage.
 
 Note your backend service URL (e.g., `https://couplemood-backend.onrender.com`).
 

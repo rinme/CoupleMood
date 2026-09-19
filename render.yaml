@@ -11,7 +11,3 @@ services:
         value: production
       - key: DB_PATH
         value: /app/data/mood.db
-    disk:
-      name: mood-data
-      mountPath: /app/data
-      sizeGB: 1
