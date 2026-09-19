@@ -47,26 +47,26 @@ export const PushPrompt: React.FC<PushPromptProps> = ({ onSubscribe }) => {
   if (!isVisible) return null;
 
   return (
-    <div className="bg-gradient-to-r from-rose-50 via-amber-50 to-rose-50 border border-rose-200/80 rounded-2xl p-4 shadow-sm relative mb-5 transition-all">
+    <div className="bg-gradient-to-r from-rose-50/90 via-amber-50/60 to-rose-50/80 backdrop-blur-sm border border-rose-200/80 rounded-3xl p-4 sm:p-5 shadow-cozy relative mb-5 transition-all">
       <button
         type="button"
         onClick={handleDismiss}
         aria-label={t.pushPrompt.dismissAria}
-        className="absolute top-2.5 right-2.5 text-[#8C827A] hover:text-[#2D2825] p-1 rounded-full hover:bg-black/5"
+        className="absolute top-3 right-3 text-[#8C827A] hover:text-[#2D2825] p-1.5 rounded-full hover:bg-black/5 active:scale-90 transition-all"
       >
         <X className="w-4 h-4" />
       </button>
 
-      <div className="flex items-start space-x-3 pr-6">
-        <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+      <div className="flex items-start space-x-3.5 pr-6">
+        <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-rose-100 to-rose-50 text-rose-600 flex items-center justify-center flex-shrink-0 border border-rose-200/70 shadow-xs mt-0.5">
           <Bell className="w-4 h-4" />
         </div>
 
         <div className="flex-1">
-          <h4 className="text-sm font-bold text-[#2D2825]">
+          <h4 className="text-sm font-bold text-[#2D2825] tracking-tight">
             {t.pushPrompt.title}
           </h4>
-          <p className="text-xs text-[#8C827A] mt-0.5 leading-relaxed">
+          <p className="text-xs text-[#8C827A] mt-0.5 leading-relaxed text-pretty">
             {t.pushPrompt.desc}
           </p>
 
@@ -75,7 +75,7 @@ export const PushPrompt: React.FC<PushPromptProps> = ({ onSubscribe }) => {
               type="button"
               disabled={isSubscribing}
               onClick={handleEnable}
-              className="bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold py-1.5 px-3.5 rounded-xl shadow-xs active:scale-95 transition-all flex items-center space-x-1.5 disabled:opacity-50"
+              className="bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold py-2 px-4 rounded-xl shadow-cozy-xs hover:shadow-glow-rose active:scale-[0.96] transition-all flex items-center space-x-1.5 disabled:opacity-50"
             >
               {isSubscribing ? (
                 <span>{t.pushPrompt.enabling}</span>
@@ -90,7 +90,7 @@ export const PushPrompt: React.FC<PushPromptProps> = ({ onSubscribe }) => {
             <button
               type="button"
               onClick={handleDismiss}
-              className="text-xs font-medium text-[#8C827A] hover:text-[#2D2825] py-1.5 px-2.5 rounded-xl hover:bg-black/5 active:scale-95 transition-all"
+              className="text-xs font-medium text-[#8C827A] hover:text-[#2D2825] py-2 px-3 rounded-xl hover:bg-white/80 active:scale-[0.96] transition-all"
             >
               {t.pushPrompt.notNow}
             </button>

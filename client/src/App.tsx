@@ -277,11 +277,11 @@ export const AppContent: React.FC = () => {
   // Initial Loading Spinner
   if (isInitialLoading) {
     return (
-      <div className="min-h-screen bg-[#FAF7F2] flex flex-col items-center justify-center p-4">
-        <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-500 flex items-center justify-center mb-3 animate-pulse shadow-sm">
-          <Heart className="w-6 h-6 fill-rose-500 text-rose-500" />
+      <div className="min-h-[100dvh] bg-[#FAF7F2] flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        <div className="w-14 h-14 rounded-3xl bg-gradient-to-tr from-rose-100 to-rose-50 text-rose-500 flex items-center justify-center mb-3.5 border border-rose-200/70 shadow-cozy-xs animate-soft-pulse">
+          <Heart className="w-7 h-7 fill-rose-500 text-rose-500" />
         </div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-[#8C827A]">
+        <p className="text-xs font-bold uppercase tracking-wider text-[#8C827A]">
           {t.common.connecting}
         </p>
       </div>
@@ -295,7 +295,7 @@ export const AppContent: React.FC = () => {
 
   // Main Dashboard
   return (
-    <div className="min-h-screen bg-[#FAF7F2] text-[#2D2825] flex flex-col selection:bg-rose-100 selection:text-rose-900">
+    <div className="min-h-[100dvh] bg-transparent text-[#2D2825] flex flex-col selection:bg-rose-200/80 selection:text-rose-950 relative">
       <Header
         coupleCode={session.couple.code}
         sseConnected={sseConnected}
@@ -306,8 +306,8 @@ export const AppContent: React.FC = () => {
 
       {/* Real-time Toast Alert */}
       {toast && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-40 bg-[#2D2825] text-white px-4 py-2.5 rounded-full shadow-cozy-lg flex items-center space-x-2 text-xs font-medium animate-bounce">
-          {toast.emoji && <span className="text-base">{toast.emoji}</span>}
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-40 bg-[#1C1917]/95 backdrop-blur-md text-white px-4 py-2.5 rounded-full shadow-cozy-lg border border-white/10 flex items-center space-x-2 text-xs font-semibold animate-fade-in tracking-tight">
+          {toast.emoji && <span className="text-base select-none">{toast.emoji}</span>}
           <span>{toast.message}</span>
         </div>
       )}
@@ -331,7 +331,7 @@ export const AppContent: React.FC = () => {
         />
 
         {/* Quiet footer */}
-        <footer className="pt-4 pb-2 text-center text-[11px] text-[#8C827A] flex items-center justify-center space-x-1">
+        <footer className="pt-6 pb-4 text-center text-[11px] text-[#8C827A] flex items-center justify-center space-x-1.5 font-medium">
           <span>{t.footer.craftedWith}</span>
           <Heart className="w-3 h-3 fill-rose-400 text-rose-400 inline" />
           <span>{t.footer.forCouples}</span>

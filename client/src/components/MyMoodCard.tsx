@@ -157,7 +157,7 @@ export const MyMoodCard: React.FC<MyMoodCardProps> = ({
 
   return (
     <>
-      <section className="bg-white/80 border border-[#E8E2D9] rounded-3xl p-6 sm:p-7 shadow-cozy">
+      <section className="bg-white/85 backdrop-blur-sm border border-[#E8E2D9] rounded-3xl p-6 sm:p-7 shadow-cozy">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -173,14 +173,14 @@ export const MyMoodCard: React.FC<MyMoodCardProps> = ({
                 onClick={() => setIsManageOpen(true)}
                 aria-label={t.myMoodCard.manage}
                 title={t.myMoodCard.manage}
-                className="inline-flex items-center space-x-1 text-[11px] font-semibold text-[#8C827A] hover:text-[#2D2825] px-2 py-0.5 rounded-lg hover:bg-black/5 active:scale-95 transition-all border border-[#E8E2D9]"
+                className="inline-flex items-center space-x-1 text-[11px] font-semibold text-[#8C827A] hover:text-[#2D2825] px-2.5 py-0.5 rounded-lg bg-white/60 hover:bg-white hover:border-rose-300 active:scale-[0.96] transition-all border border-[#E8E2D9] shadow-cozy-xs"
               >
                 <span>⚙️</span>
                 <span>{t.myMoodCard.manage}</span>
               </button>
             </div>
 
-            <h3 className="text-lg font-bold text-[#2D2825] mt-0.5">
+            <h3 className="text-lg font-bold text-[#2D2825] mt-0.5 tracking-tight">
               {t.myMoodCard.title}
             </h3>
           </div>
@@ -191,7 +191,7 @@ export const MyMoodCard: React.FC<MyMoodCardProps> = ({
               onClick={handleClear}
               disabled={isClearing || isSubmitting}
               title={language === 'th' ? t.myMoodCard.clearStatus : 'Clear your current status'}
-              className="flex items-center space-x-1 text-xs text-[#8C827A] hover:text-rose-600 px-2.5 py-1.5 rounded-xl hover:bg-rose-50 active:scale-95 transition-all disabled:opacity-40"
+              className="flex items-center space-x-1 text-xs font-medium text-[#8C827A] hover:text-rose-600 px-2.5 py-1.5 rounded-xl hover:bg-rose-50 active:scale-[0.96] transition-all disabled:opacity-40"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>{isClearing ? t.myMoodCard.clearing : t.myMoodCard.clearStatus}</span>
@@ -211,17 +211,17 @@ export const MyMoodCard: React.FC<MyMoodCardProps> = ({
                   key={`${preset.emoji}-${preset.label}-${index}`}
                   type="button"
                   onClick={() => handleSelectPreset(preset)}
-                  className={`flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-2xl border transition-all active:scale-95 ${
+                  className={`group flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-2xl border transition-all duration-200 active:scale-[0.94] ${
                     isSelected
-                      ? `${theme.cardBg} ${theme.border} ring-2 ring-rose-400/80 shadow-xs`
-                      : 'bg-[#FAF7F2]/80 border-[#E8E2D9] hover:bg-white hover:border-[#D6CEC4]'
+                      ? `${theme.cardBg} ${theme.border} ring-2 ring-rose-400 shadow-cozy-sm scale-[1.02]`
+                      : 'bg-[#FAF7F2]/80 border-[#E8E2D9] hover:bg-white hover:border-[#D6CEC4] hover:shadow-cozy-xs'
                   }`}
                 >
-                  <span className="text-2xl sm:text-3xl mb-1 select-none">
+                  <span className={`text-2xl sm:text-3xl mb-1 select-none transition-transform duration-200 ${isSelected ? 'scale-110' : 'group-hover:scale-105'}`}>
                     {preset.emoji}
                   </span>
                   <span
-                    className={`text-[11px] sm:text-xs font-semibold truncate max-w-full ${
+                    className={`text-[11px] sm:text-xs font-semibold truncate max-w-full tracking-tight ${
                       isSelected ? theme.badgeText : 'text-[#2D2825]'
                     }`}
                   >
@@ -242,7 +242,7 @@ export const MyMoodCard: React.FC<MyMoodCardProps> = ({
                 {t.myMoodCard.noteLabel}
               </label>
               <span
-                className={`text-xs font-mono ${
+                className={`text-xs font-mono tabular-nums ${
                   note.length >= 90 ? 'text-rose-500 font-bold' : 'text-[#8C827A]'
                 }`}
               >
@@ -258,7 +258,7 @@ export const MyMoodCard: React.FC<MyMoodCardProps> = ({
                 onChange={handleNoteChange}
                 placeholder={t.myMoodCard.notePlaceholder}
                 maxLength={100}
-                className="w-full bg-[#FAF7F2] border border-[#E8E2D9] rounded-2xl px-4 py-2.5 text-sm text-[#2D2825] placeholder:text-[#8C827A]/60 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:bg-white transition-all"
+                className="w-full bg-[#FAF7F2] border border-[#E8E2D9] rounded-2xl px-4 py-2.5 text-sm text-[#2D2825] placeholder:text-[#8C827A]/60 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:bg-white transition-all shadow-inner"
               />
             </div>
           </div>
@@ -267,7 +267,7 @@ export const MyMoodCard: React.FC<MyMoodCardProps> = ({
           <button
             type="submit"
             disabled={!selectedPreset || isSubmitting}
-            className="w-full py-3.5 px-6 rounded-2xl bg-[#2D2825] hover:bg-black text-[#FAF7F2] font-semibold text-sm shadow-md flex items-center justify-center space-x-2 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-b from-[#2D2825] to-[#1C1917] hover:from-black hover:to-[#1C1917] text-[#FAF7F2] font-semibold text-sm shadow-md hover:shadow-lg flex items-center justify-center space-x-2 active:scale-[0.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed border border-white/10"
           >
             {isSubmitting ? (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

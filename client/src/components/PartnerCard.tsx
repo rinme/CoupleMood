@@ -59,24 +59,24 @@ export const PartnerCard: React.FC<PartnerCardProps> = ({
   // 1. Partner has not joined yet
   if (!partner) {
     return (
-      <section className="bg-white/80 border border-[#E8E2D9] rounded-3xl p-6 sm:p-7 shadow-cozy text-center transition-all">
-        <div className="w-14 h-14 mx-auto rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 mb-3 shadow-sm">
+      <section className="bg-white/85 backdrop-blur-sm border border-[#E8E2D9] rounded-3xl p-6 sm:p-8 shadow-cozy text-center transition-all">
+        <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-amber-100/90 to-amber-50 border border-amber-200/80 flex items-center justify-center text-amber-600 mb-3.5 shadow-cozy-xs">
           <HeartHandshake className="w-7 h-7" />
         </div>
-        <h3 className="text-xl font-bold text-[#2D2825]">{t.partnerCard.waitingTitle}</h3>
-        <p className="text-xs sm:text-sm text-[#8C827A] mt-1.5 max-w-xs mx-auto leading-relaxed">
+        <h3 className="text-xl font-bold tracking-tight text-[#2D2825]">{t.partnerCard.waitingTitle}</h3>
+        <p className="text-xs sm:text-sm text-[#8C827A] mt-1.5 max-w-xs mx-auto leading-relaxed text-pretty">
           {t.partnerCard.waitingDesc}
         </p>
 
         {coupleCode && (
-          <div className="mt-5 p-3.5 bg-[#FAF7F2] rounded-2xl border border-[#E8E2D9] inline-flex items-center space-x-3">
-            <span className="font-mono text-base sm:text-lg font-bold tracking-widest text-rose-600">
+          <div className="mt-5 p-3.5 bg-[#FAF7F2] rounded-2xl border border-[#E8E2D9] inline-flex items-center space-x-3 shadow-xs">
+            <span className="font-mono text-base sm:text-lg font-bold tracking-widest text-rose-600 tabular-nums">
               {coupleCode}
             </span>
             <button
               type="button"
               onClick={handleCopyCode}
-              className="p-1.5 rounded-xl bg-white border border-[#E8E2D9] hover:border-rose-300 text-[#2D2825] active:scale-95 shadow-xs transition-all flex items-center space-x-1 text-xs font-semibold px-2.5"
+              className="p-1.5 rounded-xl bg-white border border-[#E8E2D9] hover:border-rose-300 text-[#2D2825] active:scale-[0.96] shadow-cozy-xs hover:shadow-cozy-sm transition-all flex items-center space-x-1 text-xs font-semibold px-2.5"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
               <span>{copied ? t.partnerCard.copied : t.partnerCard.copy}</span>
@@ -90,25 +90,25 @@ export const PartnerCard: React.FC<PartnerCardProps> = ({
   // 2. Partner is joined, but has not set an active mood
   if (!partnerMood) {
     return (
-      <section className="bg-white/80 border border-[#E8E2D9] rounded-3xl p-6 sm:p-7 shadow-cozy transition-all">
-        <div className="flex items-center justify-between mb-4">
+      <section className="bg-white/85 backdrop-blur-sm border border-[#E8E2D9] rounded-3xl p-6 sm:p-7 shadow-cozy transition-all">
+        <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#E8E2D9]/60">
           <span className="text-xs font-bold uppercase tracking-wider text-[#8C827A] flex items-center space-x-1.5">
             <Users className="w-3.5 h-3.5 text-rose-400" />
             <span>
               {language === 'th' ? `ความรู้สึกของ ${partner.nickname}` : `${partner.nickname}'s Mood`}
             </span>
           </span>
-          <span className="text-[11px] text-[#8C827A] italic">{t.partnerCard.quietForNow}</span>
+          <span className="text-[11px] text-[#8C827A] italic font-medium">{t.partnerCard.quietForNow}</span>
         </div>
 
-        <div className="py-8 text-center flex flex-col items-center">
-          <div className="text-5xl sm:text-6xl mb-3 select-none filter grayscale opacity-40">
+        <div className="py-7 text-center flex flex-col items-center">
+          <div className="w-16 h-16 rounded-3xl bg-emerald-50/70 border border-emerald-100/90 flex items-center justify-center text-3xl sm:text-4xl mb-3.5 select-none shadow-cozy-xs">
             🌱
           </div>
-          <h4 className="text-lg font-semibold text-[#2D2825]">
+          <h4 className="text-lg font-bold text-[#2D2825] tracking-tight">
             {t.partnerCard.waitingFor} {partner.nickname}
           </h4>
-          <p className="text-xs text-[#8C827A] mt-1 max-w-xs leading-relaxed">
+          <p className="text-xs text-[#8C827A] mt-1 max-w-xs leading-relaxed text-pretty">
             {partner.nickname} {t.partnerCard.notPostedYet}
           </p>
         </div>
@@ -125,15 +125,21 @@ export const PartnerCard: React.FC<PartnerCardProps> = ({
     <section
       className={`relative overflow-hidden rounded-3xl p-6 sm:p-7 border ${theme.border} ${theme.cardBg} shadow-cozy-lg transition-all duration-500`}
       style={{
-        boxShadow: `0 8px 30px -6px ${theme.glow}, 0 2px 10px -2px rgba(45, 40, 37, 0.04)`,
+        boxShadow: `0 12px 32px -8px ${theme.glow}, 0 2px 10px -2px rgba(45, 40, 37, 0.04), inset 0 1px 0 0 rgba(255, 255, 255, 0.9)`,
       }}
     >
+      {/* Ambient radial aura behind mood emoji */}
+      <div
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full blur-3xl pointer-events-none opacity-40"
+        style={{ background: theme.glow }}
+      />
+
       {/* Header bar */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="relative z-10 flex items-center justify-between mb-4">
         <div className="flex items-center space-x-2">
           <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500 ring-2 ring-rose-100" />
           </span>
           <span className="text-xs font-bold uppercase tracking-wider text-[#2D2825]">
             {language === 'th'
@@ -142,23 +148,23 @@ export const PartnerCard: React.FC<PartnerCardProps> = ({
           </span>
         </div>
 
-        <div className="flex items-center space-x-1 text-xs text-[#8C827A]">
-          <Clock className="w-3 h-3" />
+        <div className="flex items-center space-x-1 text-xs text-[#8C827A] tabular-nums font-medium">
+          <Clock className="w-3.5 h-3.5" />
           <span>{relativeTime}</span>
         </div>
       </div>
 
       {/* Main Mood Display */}
-      <div className="flex flex-col items-center text-center py-3 sm:py-4">
+      <div className="relative z-10 flex flex-col items-center text-center py-3 sm:py-4">
         {/* Large Emoji */}
-        <div className="text-6xl sm:text-7xl mb-3.5 select-none transform hover:scale-105 transition-transform drop-shadow-sm">
+        <div className="text-6xl sm:text-7xl mb-3.5 select-none transform hover:scale-105 transition-transform drop-shadow-sm animate-soft-pulse">
           {partnerMood.emoji}
         </div>
 
         {/* Mood Label */}
         <div className="inline-flex items-center space-x-2">
           <span
-            className={`text-sm sm:text-base font-bold px-3.5 py-1 rounded-full ${theme.badgeBg} ${theme.badgeText} shadow-xs`}
+            className={`text-sm sm:text-base font-bold px-4 py-1.5 rounded-full ${theme.badgeBg} ${theme.badgeText} shadow-xs border border-white/60 tracking-tight`}
           >
             {partnerMood.label}
           </span>
@@ -167,7 +173,7 @@ export const PartnerCard: React.FC<PartnerCardProps> = ({
         {/* Optional Custom Note */}
         {partnerMood.note && (
           <div
-            className={`mt-4 max-w-sm w-full p-3.5 sm:p-4 rounded-2xl ${theme.quoteBg} border ${theme.quoteBorder} shadow-xs text-[#2D2825] text-center relative`}
+            className={`mt-4 max-w-sm w-full p-3.5 sm:p-4 rounded-2xl ${theme.quoteBg} border ${theme.quoteBorder} shadow-cozy-xs text-[#2D2825] text-center relative`}
           >
             <MessageSquareQuote className="w-4 h-4 text-[#8C827A] mx-auto mb-1 opacity-70" />
             <p className="text-sm font-medium italic leading-relaxed break-words">
