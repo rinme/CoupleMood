@@ -89,14 +89,17 @@ export const AppContent: React.FC = () => {
           try {
             sessionData = await api.auth.verifyDeviceLink(linkCode);
             if (typeof window !== 'undefined' && window.history?.replaceState) {
-              window.history.replaceState({}, '', window.location.pathname);
+              window.history.replaceState({}, '', '/');
             }
             showToast({ message: t.deviceLink.connectedSuccess, emoji: '📱' });
           } catch (linkErr) {
             console.warn('Auto-login with device link failed, falling back to getSession:', linkErr);
             if (typeof window !== 'undefined' && window.history?.replaceState) {
-              window.history.replaceState({}, '', window.location.pathname);
+              window.history.replaceState({}, '', '/');
             }
+            const errStatus = (linkErr as any)?.status;
+            const errText = errStatus === 410 ? t.pairing.errorExpiredOtp : t.pairing.errorInvalidOtp;
+            showToast({ message: errText, emoji: '⚠️' });
             sessionData = await api.auth.getSession();
           }
         } else {

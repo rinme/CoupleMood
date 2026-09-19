@@ -50,8 +50,8 @@ export const CameraScannerModal: React.FC<CameraScannerModalProps> = ({
       return trimmed;
     }
 
-    // 2. URL parameter match via regex /link\?code=(\d{6})/ or /code=(\d{6})/
-    const match = trimmed.match(/[?&]code=(\d{6})/);
+    // 2. URL parameter match via regex /link?code=(\d{6}) or /code=(\d{6})
+    const match = trimmed.match(/[?&]code=(\d{6})(?:[&#]|$)/);
     if (match && match[1]) {
       return match[1];
     }
